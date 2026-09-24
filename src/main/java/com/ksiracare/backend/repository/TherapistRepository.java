@@ -3,5 +3,9 @@ package com.ksiracare.backend.repository;
 import com.ksiracare.backend.entity.Therapist;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface TherapistRepository extends JpaRepository<Therapist, Long> {
+import java.util.Optional;
+import java.util.UUID;
+
+public interface TherapistRepository extends JpaRepository<Therapist, UUID> {
+    Optional<Therapist> findByEmail(String email);
 }
