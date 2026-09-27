@@ -14,4 +14,16 @@ public class GlobalExceptionHandler {
     public Map<String, String> handleResourceNotFound(ResourceNotFoundException exception) {
         return Map.of("error", exception.getMessage());
     }
+
+    @ExceptionHandler(value = SlotConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Map<String, String> handleSlotConflict(SlotConflictException exception) {
+        return Map.of("error", exception.getMessage());
+    }
+
+    @ExceptionHandler(value = {InvalidSlotTimeException.class, IllegalArgumentException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> handleBadRequest(RuntimeException exception) {
+        return Map.of("error", exception.getMessage());
+    }
 }
