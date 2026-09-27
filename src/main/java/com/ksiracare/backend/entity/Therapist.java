@@ -1,6 +1,5 @@
 package com.ksiracare.backend.entity;
 
-import com.ksiracare.backend.enums.Language;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -60,14 +59,13 @@ public class Therapist {
     @Past(message = "Date of birth must be in the past")
     private LocalDate dateOfBirth;
 
-    @ElementCollection(fetch = FetchType.LAZY)
-    @Enumerated(EnumType.STRING)
-    @CollectionTable(
-            name = "preferred_languages",
-            joinColumns = @JoinColumn(name = "therapist_id")
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "therapist_languages",
+            joinColumns = @JoinColumn(name = "therapist_id"),
+            inverseJoinColumns = @JoinColumn(name = "language_id")
     )
-    @Column(name = "language")
-    private Set<Language> languages = new HashSet<>();
+    private Set<LanguageEntity> languages = new HashSet<>();
 
     private String address;
 
