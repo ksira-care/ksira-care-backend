@@ -8,18 +8,20 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface SlotRepository extends JpaRepository<Slot, UUID> {
 
-    @Query("SELECT s FROM Slot s WHERE s.therapist.id = :therapistId AND s.slotTime >= :startTime AND s.slotTime <= :endTime ORDER BY s.slotTime ASC")
-    List<Slot> findByTherapistIdAndSlotTimeBetween(
+    /** A therapist's slots in [from, to), stored UTC. */
+    @Query("""
+            SELECT s FROM Slot s
+            WHERE s.therapist.id = :therapistId AND s.slotTime >= :from AND s.slotTime < :to
+            ORDER BY s.slotTime ASC
+            """)
+    List<Slot> findForTherapist(
             @Param("therapistId") UUID therapistId,
-            @Param("startTime") LocalDateTime startTime,
-            @Param("endTime") LocalDateTime endTime
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to
     );
-
-    Optional<Slot> findByTherapistIdAndSlotTime(UUID therapistId, LocalDateTime slotTime);
 }

@@ -5,212 +5,117 @@ import com.ksiracare.backend.dto.response.SlotResponseDto;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.entity.Therapist;
 import com.ksiracare.backend.enums.SlotStatus;
+import com.ksiracare.backend.exception.ApiException;
 import com.ksiracare.backend.exception.InvalidSlotTimeException;
-import com.ksiracare.backend.exception.ResourceNotFoundException;
 import com.ksiracare.backend.exception.SlotConflictException;
 import com.ksiracare.backend.mapper.SlotMapper;
+import com.ksiracare.backend.mapper.SlotMapperImpl;
 import com.ksiracare.backend.policy.FixedHourlySlotSchedulePolicy;
-import com.ksiracare.backend.policy.SlotSchedulePolicy;
 import com.ksiracare.backend.repository.SlotRepository;
 import com.ksiracare.backend.repository.TherapistRepository;
+import com.ksiracare.backend.support.TestClocks;
+import com.ksiracare.backend.time.EpochTime;
+import com.ksiracare.backend.time.PortalCalendar;
+import com.ksiracare.backend.time.UtcRange;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static com.ksiracare.backend.support.TestClocks.utc;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 class SlotServiceImplTest {
 
-    @Mock
-    private TherapistRepository therapistRepository;
+    private static final UUID THERAPIST_ID = UUID.randomUUID();
+    private static final UtcRange OCT_5 = new UtcRange(utc("2026-10-05T00:00"), utc("2026-10-06T00:00"));
 
-    @Mock
-    private SlotRepository slotRepository;
-
-    private final SlotSchedulePolicy slotSchedulePolicy = new FixedHourlySlotSchedulePolicy();
-    private final SlotMapper slotMapper = Mappers.getMapper(SlotMapper.class);
-
-    private SlotServiceImpl slotService;
-
-    private UUID therapistId;
-    private Therapist mockTherapist;
+    private final SlotRepository slotRepository = mock(SlotRepository.class);
+    private final TherapistRepository therapistRepository = mock(TherapistRepository.class);
+    private final PortalCalendar calendar = TestClocks.calendarAt("2026-10-03T15:00");
+    private final SlotMapper mapper = new SlotMapperImpl();
+    private SlotServiceImpl service;
+    private final Therapist therapist = new Therapist("Aanya", "Mehta", "a@k.com", "hash");
 
     @BeforeEach
     void setUp() {
-        slotService = new SlotServiceImpl(
-                therapistRepository,
-                slotRepository,
-                slotSchedulePolicy,
-                slotMapper
-        );
-
-        therapistId = UUID.randomUUID();
-        mockTherapist = mock(Therapist.class);
-        lenient().when(mockTherapist.getId()).thenReturn(therapistId);
+        service = new SlotServiceImpl(therapistRepository, slotRepository,
+                new FixedHourlySlotSchedulePolicy(calendar, TestClocks.PORTAL), mapper, calendar);
+        when(therapistRepository.getReferenceById(THERAPIST_ID)).thenReturn(therapist);
+        when(slotRepository.findForTherapist(eq(THERAPIST_ID), any(), any())).thenReturn(List.of());
     }
 
-    private Long toEpochMilli(int year, int month, int day, int hour, int minute) {
-        return LocalDateTime.of(year, month, day, hour, minute, 0)
-                .toInstant(ZoneOffset.UTC)
-                .toEpochMilli();
+    private static SlotRequestDto change(String istTime, SlotStatus status) {
+        return new SlotRequestDto(null, EpochTime.toMillis(utc(istTime)), status);
     }
 
     @Test
-    @DisplayName("Should throw ResourceNotFoundException when therapist does not exist")
-    void testGetSlotsTherapistNotFound() {
-        Long start = toEpochMilli(2026, 9, 27, 9, 0);
-        Long end = toEpochMilli(2026, 9, 27, 12, 0);
+    void reportsEveryHourAndTreatsUnrecordedOnesAsClosed() {
+        when(slotRepository.findForTherapist(eq(THERAPIST_ID), any(), any()))
+                .thenReturn(List.of(new Slot(therapist, utc("2026-10-05T10:00"), SlotStatus.THERAPIST_AVAILABLE)));
 
-        when(therapistRepository.existsById(therapistId)).thenReturn(false);
+        List<SlotResponseDto> slots = service.getSlots(THERAPIST_ID, OCT_5);
 
-        assertThrows(ResourceNotFoundException.class, () ->
-                slotService.getSlots(therapistId, start, end));
+        assertThat(slots).hasSize(15);
+        assertThat(slots.get(0).getStatus()).isEqualTo(SlotStatus.THERAPIST_UNAVAILABLE);
+        assertThat(slots.get(1).getStatus()).isEqualTo(SlotStatus.THERAPIST_AVAILABLE);
     }
 
     @Test
-    @DisplayName("Should return slots with default THERAPIST_UNAVAILABLE when not persisted")
-    void testGetSlotsDefaultUnavailable() {
-        Long start = toEpochMilli(2026, 9, 27, 9, 0);
-        Long end = toEpochMilli(2026, 9, 27, 11, 0);
-        LocalDateTime startDT = LocalDateTime.of(2026, 9, 27, 9, 0);
-        LocalDateTime endDT = LocalDateTime.of(2026, 9, 27, 11, 0);
+    @SuppressWarnings("unchecked")
+    void savesOnlyTheHoursSent() {
+        service.saveSlots(THERAPIST_ID, OCT_5, List.of(change("2026-10-05T09:00", SlotStatus.THERAPIST_AVAILABLE)));
 
-        when(therapistRepository.existsById(therapistId)).thenReturn(true);
-        when(slotRepository.findByTherapistIdAndSlotTimeBetween(therapistId, startDT, endDT))
-                .thenReturn(List.of());
-
-        List<SlotResponseDto> result = slotService.getSlots(therapistId, start, end);
-
-        // 9:00, 10:00, 11:00 -> 3 slots
-        assertEquals(3, result.size());
-        for (SlotResponseDto slot : result) {
-            assertNull(slot.getId());
-            assertEquals(SlotStatus.THERAPIST_UNAVAILABLE, slot.getStatus());
-        }
+        ArgumentCaptor<List<Slot>> saved = ArgumentCaptor.forClass(List.class);
+        verify(slotRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).singleElement()
+                .satisfies(slot -> assertThat(slot.getSlotTime()).isEqualTo(utc("2026-10-05T09:00")));
     }
 
     @Test
-    @DisplayName("Should overlay persisted slots on the fixed grid")
-    void testGetSlotsWithPersistedOverrides() {
-        Long start = toEpochMilli(2026, 9, 27, 9, 0);
-        Long end = toEpochMilli(2026, 9, 27, 11, 0);
-        LocalDateTime startDT = LocalDateTime.of(2026, 9, 27, 9, 0);
-        LocalDateTime endDT = LocalDateTime.of(2026, 9, 27, 11, 0);
+    void refusesToChangeABookedHour() {
+        when(slotRepository.findForTherapist(eq(THERAPIST_ID), any(), any()))
+                .thenReturn(List.of(new Slot(therapist, utc("2026-10-05T09:00"), SlotStatus.BOOKED)));
 
-        LocalDateTime bookedTime = LocalDateTime.of(2026, 9, 27, 10, 0);
-        UUID bookedSlotId = UUID.randomUUID();
-        Slot bookedSlot = Slot.builder()
-                .id(bookedSlotId)
-                .therapist(mockTherapist)
-                .slotTime(bookedTime)
-                .status(SlotStatus.BOOKED)
-                .build();
-
-        when(therapistRepository.existsById(therapistId)).thenReturn(true);
-        when(slotRepository.findByTherapistIdAndSlotTimeBetween(therapistId, startDT, endDT))
-                .thenReturn(List.of(bookedSlot));
-
-        List<SlotResponseDto> result = slotService.getSlots(therapistId, start, end);
-
-        assertEquals(3, result.size());
-        // 9:00 -> default unavailable
-        assertEquals(SlotStatus.THERAPIST_UNAVAILABLE, result.get(0).getStatus());
-        assertNull(result.get(0).getId());
-
-        // 10:00 -> persisted BOOKED
-        assertEquals(SlotStatus.BOOKED, result.get(1).getStatus());
-        assertEquals(bookedSlotId, result.get(1).getId());
-
-        // 11:00 -> default unavailable
-        assertEquals(SlotStatus.THERAPIST_UNAVAILABLE, result.get(2).getStatus());
-        assertNull(result.get(2).getId());
+        assertThatThrownBy(() -> service.saveSlots(THERAPIST_ID, OCT_5,
+                List.of(change("2026-10-05T09:00", SlotStatus.THERAPIST_UNAVAILABLE))))
+                .isInstanceOf(SlotConflictException.class);
+        verify(slotRepository, never()).saveAll(anyList());
     }
 
     @Test
-    @DisplayName("Should throw InvalidSlotTimeException if slot time is not at top of hour")
-    void testSaveSlotsInvalidMinute() {
-        Long start = toEpochMilli(2026, 9, 27, 9, 0);
-        Long end = toEpochMilli(2026, 9, 27, 18, 0);
-
-        when(therapistRepository.findById(therapistId)).thenReturn(Optional.of(mockTherapist));
-
-        List<SlotRequestDto> requests = List.of(
-                new SlotRequestDto(null, toEpochMilli(2026, 9, 27, 10, 30), SlotStatus.THERAPIST_AVAILABLE)
-        );
-
-        assertThrows(InvalidSlotTimeException.class, () ->
-                slotService.saveSlots(therapistId, start, end, requests));
+    void refusesToSetBooked() {
+        assertThatThrownBy(() -> service.saveSlots(THERAPIST_ID, OCT_5, List.of(change("2026-10-05T09:00", SlotStatus.BOOKED))))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("opened or closed");
     }
 
     @Test
-    @DisplayName("Should throw SlotConflictException when trying to modify already BOOKED slot")
-    void testSaveSlotsConflictWithBookedSlot() {
-        Long start = toEpochMilli(2026, 9, 27, 9, 0);
-        Long end = toEpochMilli(2026, 9, 27, 18, 0);
-        LocalDateTime startDT = LocalDateTime.of(2026, 9, 27, 9, 0);
-        LocalDateTime endDT = LocalDateTime.of(2026, 9, 27, 18, 0);
-        LocalDateTime slotTimeDT = LocalDateTime.of(2026, 9, 27, 10, 0);
+    void refusesHoursOutsideOpeningTimesOrAlreadyStarted() {
+        assertThatThrownBy(() -> service.saveSlots(THERAPIST_ID, OCT_5, List.of(change("2026-10-05T08:00", SlotStatus.THERAPIST_AVAILABLE))))
+                .isInstanceOf(InvalidSlotTimeException.class);
 
-        when(therapistRepository.findById(therapistId)).thenReturn(Optional.of(mockTherapist));
-
-        Slot bookedSlot = Slot.builder()
-                .id(UUID.randomUUID())
-                .therapist(mockTherapist)
-                .slotTime(slotTimeDT)
-                .status(SlotStatus.BOOKED)
-                .build();
-
-        when(slotRepository.findByTherapistIdAndSlotTimeBetween(therapistId, startDT, endDT))
-                .thenReturn(List.of(bookedSlot));
-
-        List<SlotRequestDto> requests = List.of(
-                new SlotRequestDto(null, toEpochMilli(2026, 9, 27, 10, 0), SlotStatus.THERAPIST_AVAILABLE)
-        );
-
-        assertThrows(SlotConflictException.class, () ->
-                slotService.saveSlots(therapistId, start, end, requests));
+        UtcRange today = new UtcRange(utc("2026-10-03T00:00"), utc("2026-10-04T00:00"));
+        assertThatThrownBy(() -> service.saveSlots(THERAPIST_ID, today, List.of(change("2026-10-03T14:00", SlotStatus.THERAPIST_AVAILABLE))))
+                .isInstanceOf(InvalidSlotTimeException.class);
     }
 
     @Test
-    @DisplayName("Should successfully save availability and persist slots")
-    void testSaveSlotsSuccess() {
-        Long start = toEpochMilli(2026, 9, 27, 9, 0);
-        Long end = toEpochMilli(2026, 9, 27, 11, 0);
-        LocalDateTime startDT = LocalDateTime.of(2026, 9, 27, 9, 0);
-        LocalDateTime endDT = LocalDateTime.of(2026, 9, 27, 11, 0);
-        LocalDateTime slotTimeDT = LocalDateTime.of(2026, 9, 27, 9, 0);
-
-        when(therapistRepository.findById(therapistId)).thenReturn(Optional.of(mockTherapist));
-        when(therapistRepository.existsById(therapistId)).thenReturn(true);
-        when(slotRepository.findByTherapistIdAndSlotTimeBetween(therapistId, startDT, endDT))
-                .thenReturn(List.of());
-
-        List<SlotRequestDto> requests = List.of(
-                new SlotRequestDto(null, toEpochMilli(2026, 9, 27, 9, 0), SlotStatus.THERAPIST_AVAILABLE)
-        );
-
-        slotService.saveSlots(therapistId, start, end, requests);
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<Slot>> captor = ArgumentCaptor.forClass(List.class);
-        verify(slotRepository).saveAll(captor.capture());
-
-        List<Slot> savedSlots = captor.getValue();
-        assertEquals(1, savedSlots.size());
-        assertEquals(slotTimeDT, savedSlots.getFirst().getSlotTime());
-        assertEquals(SlotStatus.THERAPIST_AVAILABLE, savedSlots.getFirst().getStatus());
+    void refusesTheSameHourTwice() {
+        assertThatThrownBy(() -> service.saveSlots(THERAPIST_ID, OCT_5, List.of(
+                change("2026-10-05T09:00", SlotStatus.THERAPIST_AVAILABLE),
+                change("2026-10-05T09:00", SlotStatus.THERAPIST_UNAVAILABLE))))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("twice");
     }
 }

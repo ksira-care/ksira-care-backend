@@ -1,65 +1,74 @@
 package com.ksiracare.backend.security;
 
+import com.ksiracare.backend.config.AuthProperties;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Function;
 
+/** Issues and verifies the signed session token stored in the session cookie. */
 @Service
 public class JwtService {
 
-    @Value("${jwt.secret:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}")
-    private String secretKey;
+    private static final String THERAPIST_ID_CLAIM = "therapistId";
+    private static final int MIN_KEY_BYTES = 32;
 
-    private static final long JWT_EXPIRATION = 1000 * 60 * 60 * 2;
+    private final SecretKey signingKey;
+    private final Duration ttl;
+    private final Clock clock;
 
-    public String generateToken(String email, UUID therapistId) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("therapistId", therapistId.toString());
+    public JwtService(AuthProperties properties, Clock clock) {
+        this.signingKey = toKey(properties.jwtSecret());
+        this.ttl = properties.sessionTtl();
+        this.clock = clock;
+    }
 
+    public String issue(UUID therapistId, String email) {
+        Instant now = clock.instant();
         return Jwts.builder()
-                .claims(claims)
                 .subject(email)
-                .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + JWT_EXPIRATION))
-                .signWith(getSignInKey())
+                .claim(THERAPIST_ID_CLAIM, therapistId.toString())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(ttl)))
+                .signWith(signingKey)
                 .compact();
     }
 
-    public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+    /** The therapist the token belongs to, or empty if it's tampered with, malformed or expired. */
+    public Optional<TherapistPrincipal> verify(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(signingKey)
+                    .clock(() -> Date.from(clock.instant()))
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            UUID therapistId = UUID.fromString(claims.get(THERAPIST_ID_CLAIM, String.class));
+            return Optional.of(new TherapistPrincipal(therapistId, claims.getSubject()));
+        } catch (JwtException | IllegalArgumentException invalid) {
+            return Optional.empty();
+        }
     }
 
-    public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    public Duration ttl() {
+        return ttl;
     }
 
-    private boolean isTokenExpired(String token) {
-        return extractClaim(token, Claims::getExpiration).before(new Date());
-    }
-
-    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = Jwts.parser()
-                .verifyWith(getSignInKey())
-                .build()
-                .parseSignedClaims(token) // Replaced parseClaimsJws
-                .getPayload();            // Replaced getBody()
-        return claimsResolver.apply(claims);
-    }
-
-    private SecretKey getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
+    private static SecretKey toKey(String base64Secret) {
+        byte[] bytes = Decoders.BASE64.decode(base64Secret);
+        if (bytes.length < MIN_KEY_BYTES) {
+            throw new IllegalStateException("ksira.auth.jwt-secret must decode to at least 256 bits");
+        }
+        return Keys.hmacShaKeyFor(bytes);
     }
 }
