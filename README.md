@@ -43,10 +43,10 @@ applied migration.
 Portal rules live in `application.properties` (`ksira.portal.*`, `ksira.auth.*`): time zone
 (IST), opening hours (09:00–23:00), 60-day window, 2-hour sessions, sign-in rate limit.
 
-## Deploy (Netlify + Render + Neon)
+## Deploy (Render + Neon)
 
 ```
-Browser → ksiracare.com (Netlify) ─ /api/* proxied → Render (this app, Docker) → Neon (PostgreSQL)
+Browser → ksiracare.com (Render static site) ─ /api/* rewritten → Render (this app, Docker) → Neon (PostgreSQL)
 ```
 
 The browser only talks to `ksiracare.com`, so the session cookie is first-party (Safari
@@ -60,8 +60,9 @@ blocks third-party cookies) and no CORS is needed. Pick **Singapore** for both R
    Set the three `KSIRA_DB_*` variables and `KSIRA_AUTH_JWT_SECRET`; health check path
    `/api/actuator/health`. The image already sets `SPRING_PROFILES_ACTIVE=prod`, and the app
    listens on Render's `$PORT`. Flyway creates the schema on first start.
-3. **Netlify** — the UI repo's `netlify.toml` proxies `/api/*` to the Render URL; update it if
-   the service isn't `ksira-care-backend.onrender.com`.
+3. **Website** — the UI is a Render static site whose first rewrite rule sends `/api/*` to
+   `https://ksira-care-backend.onrender.com/api/*`; update it if this service is renamed. See the
+   UI repo's README.
 
 The free Render instance sleeps after ~15 minutes idle; the first request then takes up to a
 minute.
