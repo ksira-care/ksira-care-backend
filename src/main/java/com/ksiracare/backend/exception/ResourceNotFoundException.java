@@ -1,7 +1,9 @@
 package com.ksiracare.backend.exception;
 
-public class ResourceNotFoundException extends RuntimeException {
-    public ResourceNotFoundException(String message) {
-        super(message);
+/** Something the client asked for doesn't exist — or isn't theirs, which is reported the same way. */
+public class ResourceNotFoundException extends ApiException {
+
+    public ResourceNotFoundException(String detail) {
+        super(ErrorCode.NOT_FOUND, detail);
     }
 }

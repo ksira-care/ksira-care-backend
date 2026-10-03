@@ -45,3 +45,6 @@ application-*.local.yml
 ### Logs ###
 *.log
 logs/
+
+### Local H2 database files ###
+/data/

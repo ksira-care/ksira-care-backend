@@ -39,8 +39,6 @@ public class Therapist {
     @Column(nullable = false)
     private String lastName;
 
-//    private String displayName;
-
     @Email(message = "Invalid email format")
     @NotBlank(message = "Email is required")
     @Column(nullable = false, unique = true)
@@ -75,6 +73,14 @@ public class Therapist {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    /** Therapists are created by admins; {@code passwordHash} must already be BCrypt-encoded. */
+    public Therapist(String firstName, String lastName, String email, String passwordHash) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email;
+        this.password = passwordHash;
+    }
 
     @Override
     public boolean equals(Object o) {

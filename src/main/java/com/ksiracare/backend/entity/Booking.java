@@ -94,6 +94,10 @@ public class Booking {
     @Column(name = "reschedule_reason")
     private String rescheduleReason;
 
+    /** When the therapist marked the session complete / client no-show; null while pending. */
+    @Column(name = "marked_at")
+    private LocalDateTime markedAt;
+
     @Version
     private Long version;
 

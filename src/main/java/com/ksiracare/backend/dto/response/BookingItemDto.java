@@ -2,33 +2,28 @@ package com.ksiracare.backend.dto.response;
 
 import com.ksiracare.backend.enums.BookingStatus;
 import com.ksiracare.backend.enums.Language;
-import lombok.*;
 
-import java.math.BigDecimal;
 import java.util.Set;
 import java.util.UUID;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class BookingItemDto {
-
-    private UUID bookingId;
-    private Long startTime; // Epoch millis UTC
-    private Long endTime;   // Epoch millis UTC
-    private String customerName;
-    private String customerCountry;
-    private String bookingReason;
-    private BookingStatus bookingStatus;
-    private Set<Language> customerPreferredLanguages;
-    private BigDecimal therapistFee;
-
-    // Structured Audit Fields
-    private Long assignedAt;          // Epoch millis UTC
-    @com.fasterxml.jackson.annotation.JsonProperty("isRescheduled")
-    private boolean rescheduled;
-    private Long previousStartTime;   // Epoch millis UTC
-    private String rescheduleReason;
+/**
+ * One session as the therapist sees it. All times are epoch milliseconds (UTC).
+ * Customer contact details, country and fees are deliberately not exposed.
+ *
+ * @param rescheduledFrom the original start, if an admin moved the session
+ * @param markedAt        when the therapist marked it, or null while pending
+ */
+public record BookingItemDto(
+        UUID bookingId,
+        Long startTime,
+        Long endTime,
+        String customerName,
+        String bookingReason,
+        BookingStatus bookingStatus,
+        Set<Language> customerPreferredLanguages,
+        Long assignedAt,
+        Long rescheduledFrom,
+        String rescheduleNote,
+        Long markedAt
+) {
 }
