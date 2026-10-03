@@ -134,6 +134,20 @@ class TherapistPortalApiIntegrationTest {
     }
 
     @Test
+    void theHealthCheckIsPublicAndRevealsNoDetails() throws Exception {
+        mvc.perform(get("/api/actuator/health").contextPath("/api"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components").doesNotExist());
+    }
+
+    @Test
+    void otherActuatorEndpointsAreNotExposed() throws Exception {
+        mvc.perform(get("/api/actuator/env").contextPath("/api"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void signOutClearsTheCookie() throws Exception {
         mvc.perform(post("/api/auth/logout").contextPath("/api"))
                 .andExpect(status().isNoContent())

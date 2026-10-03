@@ -81,6 +81,11 @@
             <artifactId>mapstruct</artifactId>
             <version>1.6.3</version>
         </dependency>
+        <!-- Health check for the hosting platform (only /actuator/health is exposed) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <!-- Versioned schema migrations (src/main/resources/db/migration) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

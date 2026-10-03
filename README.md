@@ -43,6 +43,49 @@ applied migration.
 Portal rules live in `application.properties` (`ksira.portal.*`, `ksira.auth.*`): time zone
 (IST), opening hours (09:00–23:00), 60-day window, 2-hour sessions, sign-in rate limit.
 
+## Deploy (Netlify + Render + Neon)
+
+```
+Browser → ksiracare.com (Netlify) ─ /api/* proxied → Render (this app, Docker) → Neon (PostgreSQL)
+```
+
+The browser only talks to `ksiracare.com`, so the session cookie is first-party (Safari
+blocks third-party cookies) and no CORS is needed. Pick **Singapore** for both Render and Neon.
+
+1. **Neon** — create a project. From its connection string
+   `postgresql://<user>:<password>@<host>/<database>?sslmode=require` take:
+   `KSIRA_DB_URL=jdbc:postgresql://<host>/<database>?sslmode=require`, `KSIRA_DB_USERNAME`,
+   `KSIRA_DB_PASSWORD`.
+2. **Render** — New → Web Service → this repo, runtime **Docker** (uses `Dockerfile`).
+   Set the three `KSIRA_DB_*` variables and `KSIRA_AUTH_JWT_SECRET`; health check path
+   `/api/actuator/health`. The image already sets `SPRING_PROFILES_ACTIVE=prod`, and the app
+   listens on Render's `$PORT`. Flyway creates the schema on first start.
+3. **Netlify** — the UI repo's `netlify.toml` proxies `/api/*` to the Render URL; update it if
+   the service isn't `ksira-care-backend.onrender.com`.
+
+The free Render instance sleeps after ~15 minutes idle; the first request then takes up to a
+minute.
+
+### Adding a therapist (admin)
+
+Run in Neon's SQL editor. Passwords are stored as bcrypt hashes, never plain text:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- once
+
+INSERT INTO therapists (id, first_name, last_name, email, password, phone, created_at, updated_at)
+VALUES (gen_random_uuid(), 'Aanya', 'Mehta', 'aanya@ksiracare.com',
+        crypt('<temporary password>', gen_salt('bf', 10)), '+91 98xxxxxxx', now(), now());
+
+-- Languages they speak (codes from the languages table: ENGLISH, HINDI, MARATHI, KANNADA)
+INSERT INTO therapist_languages (therapist_id, language_id)
+SELECT t.id, l.id FROM therapists t, languages l
+WHERE t.email = 'aanya@ksiracare.com' AND l.code IN ('ENGLISH', 'HINDI');
+```
+
+To deactivate someone: `UPDATE therapists SET is_active = false WHERE email = '…';` — their
+current session stops working on the next request.
+
 ## Conventions
 
 - **The therapist always comes from the session cookie**, never from the URL — so nobody
