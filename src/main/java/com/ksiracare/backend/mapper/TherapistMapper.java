@@ -1,6 +1,6 @@
 package com.ksiracare.backend.mapper;
 
-import com.ksiracare.backend.dto.TherapistResponseDto;
+import com.ksiracare.backend.dto.response.TherapistResponseDto;
 import com.ksiracare.backend.entity.Therapist;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
