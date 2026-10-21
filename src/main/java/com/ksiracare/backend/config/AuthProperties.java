@@ -26,6 +26,10 @@ public record AuthProperties(
         @Valid @NotNull LoginAttempts loginAttempts
 ) {
 
+    /**
+     * The one session cookie. Aaptas and admins share it: the signed token says whose session it
+     * is, and each part of the API checks that role.
+     */
     public record Cookie(@NotBlank String name, @NotBlank String path, @NotBlank String sameSite, boolean secure) {
     }
 

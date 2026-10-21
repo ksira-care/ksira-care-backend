@@ -7,12 +7,13 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 /**
  * The portal's notion of "today", "this month" and wall-clock time. Data is stored in UTC,
- * but therapists live by the portal time zone (IST), so every calendar rule goes through here.
+ * but aaptas live by the portal time zone (IST), so every calendar rule goes through here.
  */
 @Component
 public class PortalCalendar {
@@ -50,6 +51,14 @@ public class PortalCalendar {
 
     public UtcRange dayOf(LocalDate date) {
         return new UtcRange(toUtc(date, LocalTime.MIDNIGHT), toUtc(date.plusDays(1), LocalTime.MIDNIGHT));
+    }
+
+    public YearMonth currentMonth() {
+        return YearMonth.from(today());
+    }
+
+    public UtcRange monthOf(YearMonth month) {
+        return monthOf(month.atDay(1));
     }
 
     public UtcRange monthOf(LocalDate date) {

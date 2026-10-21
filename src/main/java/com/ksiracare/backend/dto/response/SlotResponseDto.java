@@ -1,20 +1,14 @@
 package com.ksiracare.backend.dto.response;
 
 import com.ksiracare.backend.enums.SlotStatus;
-import lombok.*;
 
 import java.util.UUID;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class SlotResponseDto {
-
-    private UUID id;
-
-    private Long time; // Epoch timestamp in milliseconds (UTC)
-
-    private SlotStatus status;
+/**
+ * One session hour.
+ *
+ * @param id   null for an hour that has never been opened
+ * @param time start of the hour, epoch milliseconds (UTC)
+ */
+public record SlotResponseDto(UUID id, Long time, SlotStatus status) {
 }

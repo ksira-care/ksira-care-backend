@@ -4,6 +4,7 @@ import com.ksiracare.backend.config.PortalProperties;
 import com.ksiracare.backend.time.PortalCalendar;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -12,7 +13,7 @@ import java.time.ZoneOffset;
 public final class TestClocks {
 
     public static final ZoneId IST = ZoneId.of("Asia/Kolkata");
-    public static final PortalProperties PORTAL = new PortalProperties(IST, 60, 9, 23);
+    public static final PortalProperties PORTAL = new PortalProperties(IST, 60, 9, 23, Duration.ofHours(1), Duration.ofDays(92));
 
     private TestClocks() {
     }

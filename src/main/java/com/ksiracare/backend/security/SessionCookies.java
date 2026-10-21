@@ -11,19 +11,23 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * The session lives in an httpOnly cookie: page scripts can't read it, so injected
- * scripts can't steal it. SameSite=Strict keeps other sites from sending it (CSRF).
+ * The session lives in an httpOnly cookie: page scripts can't read it, so injected scripts can't
+ * steal it. SameSite=Strict keeps other sites from sending it (CSRF). One cookie serves every
+ * {@link Role}; the token inside says whose session it is.
  */
 @Component
 public class SessionCookies {
 
     private final AuthProperties.Cookie settings;
+    private final Duration maxAge;
 
     public SessionCookies(AuthProperties properties) {
         this.settings = properties.cookie();
+        this.maxAge = properties.sessionTtl();
     }
 
-    public ResponseCookie issue(String token, Duration maxAge) {
+    /** A cookie carrying a session token, living as long as the token does. */
+    public ResponseCookie issue(String token) {
         return base(token).maxAge(maxAge).build();
     }
 

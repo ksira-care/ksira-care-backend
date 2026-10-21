@@ -1,10 +1,10 @@
 package com.ksiracare.backend.controller;
 
 import com.ksiracare.backend.dto.request.SlotRequestDto;
-import com.ksiracare.backend.dto.response.SlotResponseDto;
-import com.ksiracare.backend.security.TherapistPrincipal;
+import com.ksiracare.backend.dto.response.SlotsResponseDto;
+import com.ksiracare.backend.security.AaptaPrincipal;
 import com.ksiracare.backend.service.SlotService;
-import com.ksiracare.backend.time.EpochTime;
+import com.ksiracare.backend.time.QueryRanges;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,27 +17,28 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** The signed-in therapist's opening hours. Ranges are [startTime, endTime), epoch milliseconds. */
+/** The signed-in aapta's opening hours. Ranges are [startTime, endTime), epoch milliseconds. */
 @RestController
-@RequestMapping("/therapists/me/slots")
+@RequestMapping("/aaptas/me/slots")
 @RequiredArgsConstructor
 public class SlotController {
 
     private final SlotService slotService;
+    private final QueryRanges queryRanges;
 
     @GetMapping
-    public List<SlotResponseDto> getSlots(@AuthenticationPrincipal TherapistPrincipal me,
-                                          @RequestParam Long startTime,
-                                          @RequestParam Long endTime) {
-        return slotService.getSlots(me.therapistId(), EpochTime.toRange(startTime, endTime));
+    public SlotsResponseDto getSlots(@AuthenticationPrincipal AaptaPrincipal me,
+                                     @RequestParam long startTime,
+                                     @RequestParam long endTime) {
+        return new SlotsResponseDto(slotService.getSlots(me.aaptaId(), queryRanges.of(startTime, endTime)));
     }
 
     /** Applies only the hours sent; 409 SLOT_BOOKED if one of them has a session. */
     @PostMapping
-    public List<SlotResponseDto> saveSlots(@AuthenticationPrincipal TherapistPrincipal me,
-                                           @RequestParam Long startTime,
-                                           @RequestParam Long endTime,
-                                           @Valid @RequestBody List<@Valid SlotRequestDto> changes) {
-        return slotService.saveSlots(me.therapistId(), EpochTime.toRange(startTime, endTime), changes);
+    public SlotsResponseDto saveSlots(@AuthenticationPrincipal AaptaPrincipal me,
+                                      @RequestParam long startTime,
+                                      @RequestParam long endTime,
+                                      @Valid @RequestBody List<@Valid SlotRequestDto> changes) {
+        return new SlotsResponseDto(slotService.saveSlots(me.aaptaId(), queryRanges.of(startTime, endTime), changes));
     }
 }

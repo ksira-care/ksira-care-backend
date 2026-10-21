@@ -3,14 +3,16 @@ package com.ksiracare.backend.config;
 import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.entity.LanguageEntity;
 import com.ksiracare.backend.entity.Slot;
-import com.ksiracare.backend.entity.Therapist;
+import com.ksiracare.backend.entity.Aapta;
+import com.ksiracare.backend.entity.Admin;
 import com.ksiracare.backend.enums.BookingStatus;
 import com.ksiracare.backend.enums.Language;
 import com.ksiracare.backend.enums.SlotStatus;
 import com.ksiracare.backend.repository.BookingRepository;
 import com.ksiracare.backend.repository.LanguageRepository;
 import com.ksiracare.backend.repository.SlotRepository;
-import com.ksiracare.backend.repository.TherapistRepository;
+import com.ksiracare.backend.repository.AaptaRepository;
+import com.ksiracare.backend.repository.AdminRepository;
 import com.ksiracare.backend.time.PortalCalendar;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +34,10 @@ import java.util.stream.Collectors;
  * Demo data for local development only (dev profile, in-memory database), matching the
  * portal's mock accounts:
  * <ul>
- *   <li>therapist@ksiracare.com / password123 — active, with bookings and open hours</li>
+ *   <li>aapta@ksiracare.com / password123 — active, with bookings and open hours</li>
  *   <li>disabled@ksiracare.com / password123 — deactivated</li>
+ *   <li>ravi@ksiracare.com / password123 — active, open every hour today and tomorrow</li>
+ *   <li>admin@ksiracare.com / password123 — admin console, with bookings waiting for an aapta</li>
  * </ul>
  */
 @Slf4j
@@ -43,16 +47,20 @@ import java.util.stream.Collectors;
 public class DevDataSeeder implements ApplicationRunner {
 
     private static final String DEMO_PASSWORD = "password123";
-    private static final int SESSION_MINUTES = 60;
 
-    private final TherapistRepository therapistRepository;
+    private final AaptaRepository aaptaRepository;
+    private final AdminRepository adminRepository;
     private final LanguageRepository languageRepository;
     private final BookingRepository bookingRepository;
     private final SlotRepository slotRepository;
     private final PasswordEncoder passwordEncoder;
     private final PortalCalendar calendar;
+    private final PortalProperties portal;
 
     private record DemoClient(String name, String reason, Language... languages) {
+        String email() {
+            return name.toLowerCase().replace(' ', '.') + "@example.com";
+        }
     }
 
     private static final DemoClient[] CLIENTS = {
@@ -66,27 +74,31 @@ public class DevDataSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (therapistRepository.count() > 0) {
+        if (aaptaRepository.count() > 0) {
             return;
         }
-        Therapist aanya = createTherapist("Aanya", "Mehta", "therapist@ksiracare.com", true);
+        Aapta aanya = createAapta("Aanya", "Mehta", "aapta@ksiracare.com", true);
         aanya.setPhone("+919876543210");
         aanya.setDateOfBirth(LocalDate.of(1991, 3, 14));
         aanya.setAddress("Flat 402, Green Meadows, Pune 411014");
         aanya.setLanguages(languages(Language.ENGLISH, Language.HINDI, Language.MARATHI));
-        createTherapist("Dev", "Mehta", "disabled@ksiracare.com", false);
+        createAapta("Dev", "Mehta", "disabled@ksiracare.com", false);
+        Aapta ravi = createAapta("Ravi", "Shah", "ravi@ksiracare.com", true);
+        ravi.setLanguages(languages(Language.ENGLISH, Language.KANNADA));
+        adminRepository.save(new Admin("Meera", "Iyer", "admin@ksiracare.com", passwordEncoder.encode(DEMO_PASSWORD)));
 
         seedBookingsAndHours(aanya);
-        log.info("Seeded dev data — sign in with therapist@ksiracare.com / {}", DEMO_PASSWORD);
+        seedAdminQueue(ravi);
+        log.info("Seeded dev data — sign in with aapta@ksiracare.com or admin@ksiracare.com / {}", DEMO_PASSWORD);
     }
 
-    private Therapist createTherapist(String first, String last, String email, boolean active) {
-        Therapist therapist = new Therapist(first, last, email, passwordEncoder.encode(DEMO_PASSWORD));
-        therapist.setActive(active);
-        return therapistRepository.save(therapist);
+    private Aapta createAapta(String first, String last, String email, boolean active) {
+        Aapta aapta = new Aapta(first, last, email, passwordEncoder.encode(DEMO_PASSWORD));
+        aapta.setActive(active);
+        return aaptaRepository.save(aapta);
     }
 
-    private void seedBookingsAndHours(Therapist therapist) {
+    private void seedBookingsAndHours(Aapta aapta) {
         LocalDate today = calendar.today();
         LocalDateTime now = calendar.nowUtc();
         int clientIndex = 0;
@@ -99,16 +111,16 @@ public class DevDataSeeder implements ApplicationRunner {
             LocalDate day = today.minusDays(daysAgo);
             BookingStatus status = daysAgo == 1 ? BookingStatus.PENDING
                     : daysAgo % 7 == 2 ? BookingStatus.CLIENT_NO_SHOW : BookingStatus.COMPLETED;
-            book(therapist, day, 11, CLIENTS[clientIndex++ % CLIENTS.length], status, now);
+            book(aapta, day, 11, CLIENTS[clientIndex++ % CLIENTS.length], status, now);
         }
 
         // Today: one earlier (unmarked), the rest still to come.
         for (int hour : new int[]{10, 14, 17, 20}) {
-            book(therapist, today, hour, CLIENTS[clientIndex++ % CLIENTS.length], BookingStatus.PENDING, now);
+            book(aapta, today, hour, CLIENTS[clientIndex++ % CLIENTS.length], BookingStatus.PENDING, now);
         }
 
         // Tomorrow's first session was moved by an admin.
-        Booking moved = book(therapist, today.plusDays(1), 10, CLIENTS[clientIndex++ % CLIENTS.length], BookingStatus.PENDING, now);
+        Booking moved = book(aapta, today.plusDays(1), 10, CLIENTS[clientIndex++ % CLIENTS.length], BookingStatus.PENDING, now);
         moved.setRescheduled(true);
         moved.setPreviousStartTime(calendar.toUtc(today, LocalTime.of(16, 0)));
         moved.setRescheduleReason("Client requested the change by email more than 24 h ahead.");
@@ -121,26 +133,66 @@ public class DevDataSeeder implements ApplicationRunner {
             }
             for (int hour : new int[]{9, 12, 13, 16, 19}) {
                 LocalDateTime start = calendar.toUtc(day, LocalTime.of(hour, 0));
-                if (slotRepository.findForTherapist(therapist.getId(), start, start.plusMinutes(1)).isEmpty()) {
-                    slotRepository.save(new Slot(therapist, start, SlotStatus.THERAPIST_AVAILABLE));
+                if (slotRepository.findForAapta(aapta.getId(), start, start.plusMinutes(1)).isEmpty()) {
+                    slotRepository.save(new Slot(aapta, start, SlotStatus.AAPTA_AVAILABLE));
                 }
             }
         }
     }
 
-    private Booking book(Therapist therapist, LocalDate day, int hour, DemoClient client,
+    /**
+     * What the admin console works on: client requests with no aapta yet, today and tomorrow,
+     * and a second aapta (Ravi) who has opened every hour of both days, so there is always
+     * someone to allocate.
+     */
+    private void seedAdminQueue(Aapta ravi) {
+        LocalDate today = calendar.today();
+        for (LocalDate day : new LocalDate[]{today, today.plusDays(1)}) {
+            for (int hour = portal.firstSlotHour(); hour <= portal.lastSlotHour(); hour++) {
+                slotRepository.save(new Slot(ravi, calendar.toUtc(day, LocalTime.of(hour, 0)), SlotStatus.AAPTA_AVAILABLE));
+            }
+        }
+        int clientIndex = 0;
+        for (int hour : new int[]{15, 18, 21}) {
+            request(today, hour, CLIENTS[clientIndex++ % CLIENTS.length]);
+        }
+        for (int hour : new int[]{12, 18}) {
+            request(today.plusDays(1), hour, CLIENTS[clientIndex++ % CLIENTS.length]);
+        }
+        // Admins see cancelled bookings too.
+        request(today, 22, CLIENTS[clientIndex % CLIENTS.length]).setStatus(BookingStatus.CANCELLED);
+    }
+
+    /** A booking as a client submits it: no aapta until an admin allocates one. */
+    private Booking request(LocalDate day, int hour, DemoClient client) {
+        LocalDateTime start = calendar.toUtc(day, LocalTime.of(hour, 0));
+        return bookingRepository.save(Booking.builder()
+                .customerName(client.name())
+                .customerEmail(client.email())
+                .bookingReason(client.reason())
+                .consentGivenAt(start.minusDays(2))
+                .customerPreferredLanguages(languages(client.languages()))
+                .startTime(start)
+                .endTime(start.plus(portal.sessionLength()))
+                .build());
+    }
+
+    private Booking book(Aapta aapta, LocalDate day, int hour, DemoClient client,
                          BookingStatus status, LocalDateTime now) {
         LocalDateTime start = calendar.toUtc(day, LocalTime.of(hour, 0));
-        Slot slot = slotRepository.save(new Slot(therapist, start, SlotStatus.BOOKED));
-        LocalDateTime end = start.plusMinutes(SESSION_MINUTES);
+        Slot slot = slotRepository.save(new Slot(aapta, start, SlotStatus.BOOKED));
+        LocalDateTime end = start.plus(portal.sessionLength());
         return bookingRepository.save(Booking.builder()
-                .therapist(therapist)
+                .aapta(aapta)
                 .slot(slot)
                 .customerName(client.name())
+                .customerEmail(client.email())
                 .bookingReason(client.reason())
+                .consentGivenAt(start.minusDays(4))
                 .customerPreferredLanguages(languages(client.languages()))
                 .startTime(start)
                 .endTime(end)
+                .bccEmailSent(true)
                 .status(status)
                 .assignedAt(start.minusDays(3))
                 .markedAt(status == BookingStatus.PENDING ? null : end.plusMinutes(10).isBefore(now) ? end.plusMinutes(10) : now)

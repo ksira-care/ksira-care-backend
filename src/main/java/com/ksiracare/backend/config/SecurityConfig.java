@@ -1,11 +1,13 @@
 package com.ksiracare.backend.config;
 
 import com.ksiracare.backend.exception.ErrorCode;
-import com.ksiracare.backend.repository.TherapistRepository;
+import com.ksiracare.backend.security.AccountDirectory;
 import com.ksiracare.backend.security.JwtService;
 import com.ksiracare.backend.security.ProblemAuthenticationEntryPoint;
+import com.ksiracare.backend.security.Role;
 import com.ksiracare.backend.security.SessionAuthenticationFilter;
 import com.ksiracare.backend.security.SessionCookies;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,42 +23,54 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Stateless, cookie-based security. Only sign-in and sign-out are public; everything else
- * needs a valid session cookie. CSRF tokens aren't used: the cookie is SameSite=Strict and
- * the API only accepts JSON, so other sites can't make authenticated requests.
+ * Stateless, cookie-based security. Everyone signs in at {@code /auth/login}; the role in the
+ * session token decides what it opens:
+ * <ul>
+ *   <li>{@code /public/**} — booking from the website, no sign-in;</li>
+ *   <li>{@code /admin/**} — the admin console, admins only;</li>
+ *   <li>{@code /auth/session}, {@code /auth/password}, {@code /languages} — any signed-in account;</li>
+ *   <li>everything else — the aapta portal, aaptas only.</li>
+ * </ul>
+ * Signed in but the wrong role is 403; not signed in is 401. CSRF tokens aren't used: the cookie
+ * is SameSite=Strict and the API only accepts JSON, so other sites can't make authenticated requests.
  */
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final SessionCookies sessionCookies;
+    private final JwtService jwtService;
+    private final AccountDirectory accounts;
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   SessionCookies sessionCookies,
-                                                   JwtService jwtService,
-                                                   TherapistRepository therapistRepository) throws Exception {
-        http
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/logout").permitAll()
+                        // The website's booking form; clients have no accounts.
+                        .requestMatchers("/public/**").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        // Only reachable when springdoc is enabled (development).
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/auth/**", "/languages").authenticated()
+                        .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
+                        .anyRequest().hasRole(Role.AAPTA.name()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/logout").permitAll()
-                        .requestMatchers("/error").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
-                        // Only reachable when springdoc is enabled (development).
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .anyRequest().authenticated())
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint(new ProblemAuthenticationEntryPoint(
                                 ErrorCode.UNAUTHENTICATED, "Please sign in."))
                         .accessDeniedHandler((request, response, denied) ->
                                 new ProblemAuthenticationEntryPoint(ErrorCode.FORBIDDEN, "Not allowed.")
                                         .commence(request, response, null)))
-                .addFilterBefore(new SessionAuthenticationFilter(sessionCookies, jwtService, therapistRepository),
-                        UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
+                .addFilterBefore(new SessionAuthenticationFilter(sessionCookies, jwtService, accounts),
+                        UsernamePasswordAuthenticationFilter.class)
+                .build();
     }
 
     @Bean

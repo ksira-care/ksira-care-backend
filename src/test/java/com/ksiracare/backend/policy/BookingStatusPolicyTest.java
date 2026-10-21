@@ -33,35 +33,43 @@ class BookingStatusPolicyTest {
     @ParameterizedTest
     @EnumSource(value = BookingStatus.class, names = {"COMPLETED", "CLIENT_NO_SHOW"})
     void aStartedPendingSessionCanBeMarked(BookingStatus mark) {
-        assertThatCode(() -> policy.checkTherapistChange(booking("2026-10-03T14:30", BookingStatus.PENDING, null), mark, now))
+        assertThatCode(() -> policy.checkAaptaChange(booking("2026-10-03T14:30", BookingStatus.PENDING, null), mark, now))
                 .doesNotThrowAnyException();
     }
 
     @Test
     void aSessionCannotBeMarkedBeforeItStarts() {
-        assertThatThrownBy(() -> policy.checkTherapistChange(
+        assertThatThrownBy(() -> policy.checkAaptaChange(
                 booking("2026-10-03T17:00", BookingStatus.PENDING, null), BookingStatus.COMPLETED, now))
                 .isInstanceOf(BookingStatusChangeException.class)
                 .hasMessageContaining("started");
     }
 
     @Test
+    void aSessionCannotBeMarkedAfterItsDay() {
+        assertThatThrownBy(() -> policy.checkAaptaChange(
+                booking("2026-10-02T21:00", BookingStatus.PENDING, null), BookingStatus.COMPLETED, now))
+                .isInstanceOf(BookingStatusChangeException.class)
+                .hasMessageContaining("on the day");
+    }
+
+    @Test
     void aSessionCannotBeMarkedTwice() {
-        assertThatThrownBy(() -> policy.checkTherapistChange(
+        assertThatThrownBy(() -> policy.checkAaptaChange(
                 booking("2026-10-03T10:00", BookingStatus.COMPLETED, "2026-10-03T11:10"), BookingStatus.CLIENT_NO_SHOW, now))
                 .isInstanceOf(BookingStatusChangeException.class);
     }
 
     @Test
     void aMarkCanBeUndoneOnTheSameIstDay() {
-        assertThatCode(() -> policy.checkTherapistChange(
-                booking("2026-10-02T09:00", BookingStatus.COMPLETED, "2026-10-03T00:30"), BookingStatus.PENDING, now))
+        assertThatCode(() -> policy.checkAaptaChange(
+                booking("2026-10-03T09:00", BookingStatus.COMPLETED, "2026-10-03T10:05"), BookingStatus.PENDING, now))
                 .doesNotThrowAnyException();
     }
 
     @Test
     void aMarkFromAnEarlierDayCannotBeUndone() {
-        assertThatThrownBy(() -> policy.checkTherapistChange(
+        assertThatThrownBy(() -> policy.checkAaptaChange(
                 booking("2026-10-02T09:00", BookingStatus.COMPLETED, "2026-10-02T23:59"), BookingStatus.PENDING, now))
                 .isInstanceOf(BookingStatusChangeException.class)
                 .hasMessageContaining("day");
@@ -69,15 +77,15 @@ class BookingStatusPolicyTest {
 
     @Test
     void anAdminRecordedNoShowCannotBeUndone() {
-        assertThatThrownBy(() -> policy.checkTherapistChange(
-                booking("2026-10-03T10:00", BookingStatus.THERAPIST_NO_SHOW, "2026-10-03T12:00"), BookingStatus.PENDING, now))
+        assertThatThrownBy(() -> policy.checkAaptaChange(
+                booking("2026-10-03T10:00", BookingStatus.AAPTA_NO_SHOW, "2026-10-03T12:00"), BookingStatus.PENDING, now))
                 .isInstanceOf(BookingStatusChangeException.class);
     }
 
     @ParameterizedTest
-    @EnumSource(value = BookingStatus.class, names = {"THERAPIST_NO_SHOW", "CANCELLED"})
+    @EnumSource(value = BookingStatus.class, names = {"AAPTA_NO_SHOW", "CANCELLED"})
     void adminOnlyStatusesAreRefused(BookingStatus target) {
-        assertThatThrownBy(() -> policy.checkTherapistChange(booking("2026-10-03T10:00", BookingStatus.PENDING, null), target, now))
+        assertThatThrownBy(() -> policy.checkAaptaChange(booking("2026-10-03T10:00", BookingStatus.PENDING, null), target, now))
                 .isInstanceOf(BookingStatusChangeException.class)
                 .hasMessageContaining("admin");
     }

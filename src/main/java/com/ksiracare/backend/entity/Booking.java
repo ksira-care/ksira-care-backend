@@ -3,8 +3,6 @@ package com.ksiracare.backend.entity;
 import com.ksiracare.backend.enums.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,7 +15,7 @@ import java.util.UUID;
 @Table(
         name = "bookings",
         indexes = {
-                @Index(name = "idx_booking_therapist_start", columnList = "therapist_id, start_time"),
+                @Index(name = "idx_booking_aapta_start", columnList = "aapta_id, start_time"),
                 @Index(name = "idx_booking_status", columnList = "status")
         }
 )
@@ -26,15 +24,16 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class Booking {
+public class Booking extends Timestamped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "therapist_id", nullable = false)
-    private Therapist therapist;
+    /** Who holds the session; null until an admin allocates one. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "aapta_id")
+    private Aapta aapta;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "slot_id")
@@ -72,13 +71,17 @@ public class Booking {
     @Column(name = "booking_reason", length = 1000)
     private String bookingReason;
 
+    /** When the client accepted the terms on the booking form. */
+    @Column(name = "consent_given_at")
+    private LocalDateTime consentGivenAt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     @Builder.Default
     private BookingStatus status = BookingStatus.PENDING;
 
-    @Column(name = "therapist_fee", precision = 10, scale = 2)
-    private BigDecimal therapistFee;
+    @Column(name = "aapta_fee", precision = 10, scale = 2)
+    private BigDecimal aaptaFee;
 
     // Structured Audit Fields
     @Column(name = "assigned_at")
@@ -94,20 +97,72 @@ public class Booking {
     @Column(name = "reschedule_reason")
     private String rescheduleReason;
 
-    /** When the therapist marked the session complete / client no-show; null while pending. */
+    /** Set by an admin once the client and aapta have been emailed the Meet link (BCC). */
+    @Column(name = "bcc_email_sent", nullable = false)
+    @Builder.Default
+    private boolean bccEmailSent = false;
+
+    /** When the aapta marked the session complete / client no-show; null while pending. */
     @Column(name = "marked_at")
     private LocalDateTime markedAt;
 
     @Version
     private Long version;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    /**
+     * Gives the session to the aapta who owns {@code slot}: that hour becomes booked, the previous
+     * aapta's hour (if any) opens again, and any outcome is cleared — the new aapta marks it.
+     * The BCC flag is left alone: it records whether the client was emailed. Callers check that
+     * the slot is open and the change is allowed.
+     */
+    public void allocateTo(Slot slot, LocalDateTime now) {
+        if (this.slot != null) {
+            this.slot.release();
+        }
+        slot.book();
+        this.slot = slot;
+        this.aapta = slot.getAapta();
+        this.assignedAt = now;
+        this.status = BookingStatus.PENDING;
+        this.markedAt = null;
+    }
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    /**
+     * Takes the session away from its aapta (e.g. they were removed): it waits for an admin to
+     * allocate someone new, and any outcome is cleared. The BCC flag is left alone.
+     *
+     * @return the hour it held, for the caller to decide what happens to it; null if none
+     */
+    public Slot unallocate() {
+        Slot held = this.slot;
+        this.slot = null;
+        this.aapta = null;
+        this.assignedAt = null;
+        this.status = BookingStatus.PENDING;
+        this.markedAt = null;
+        return held;
+    }
+
+    /**
+     * The aapta didn't mark the session by the end of its day: it counts as their no-show (and
+     * the client is refunded).
+     */
+    public void recordAaptaNoShow(LocalDateTime now) {
+        this.status = BookingStatus.AAPTA_NO_SHOW;
+        this.markedAt = now;
+    }
+
+    /**
+     * Calls the session off. The aapta's hour opens again for other bookings; who held the
+     * booking is kept for the record. Callers check that cancelling is allowed.
+     */
+    public void cancel() {
+        if (this.slot != null) {
+            this.slot.release();
+            this.slot = null;
+        }
+        this.status = BookingStatus.CANCELLED;
+    }
 
     @Override
     public boolean equals(Object o) {

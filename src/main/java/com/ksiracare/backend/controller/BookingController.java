@@ -3,9 +3,9 @@ package com.ksiracare.backend.controller;
 import com.ksiracare.backend.dto.request.UpdateBookingStatusRequestDto;
 import com.ksiracare.backend.dto.response.BookingItemDto;
 import com.ksiracare.backend.dto.response.BookingsResponseDto;
-import com.ksiracare.backend.security.TherapistPrincipal;
+import com.ksiracare.backend.security.AaptaPrincipal;
 import com.ksiracare.backend.service.BookingService;
-import com.ksiracare.backend.time.EpochTime;
+import com.ksiracare.backend.time.QueryRanges;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,27 +19,28 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-/** The signed-in therapist's bookings. */
+/** The signed-in aapta's bookings. */
 @RestController
 @RequestMapping("/bookings")
 @RequiredArgsConstructor
 public class BookingController {
 
     private final BookingService bookingService;
+    private final QueryRanges queryRanges;
 
     /** Bookings starting in [startTime, endTime), epoch milliseconds. */
     @GetMapping
-    public BookingsResponseDto getBookings(@AuthenticationPrincipal TherapistPrincipal me,
-                                           @RequestParam Long startTime,
-                                           @RequestParam Long endTime) {
-        return bookingService.getBookings(me.therapistId(), EpochTime.toRange(startTime, endTime));
+    public BookingsResponseDto getBookings(@AuthenticationPrincipal AaptaPrincipal me,
+                                           @RequestParam long startTime,
+                                           @RequestParam long endTime) {
+        return new BookingsResponseDto(bookingService.getBookings(me.aaptaId(), queryRanges.of(startTime, endTime)));
     }
 
     /** Mark complete / client no-show, or undo with "PENDING". */
     @PatchMapping("/{bookingId}")
-    public BookingItemDto updateStatus(@AuthenticationPrincipal TherapistPrincipal me,
+    public BookingItemDto updateStatus(@AuthenticationPrincipal AaptaPrincipal me,
                                        @PathVariable UUID bookingId,
                                        @Valid @RequestBody UpdateBookingStatusRequestDto request) {
-        return bookingService.updateStatus(me.therapistId(), bookingId, request.bookingStatus());
+        return bookingService.updateStatus(me.aaptaId(), bookingId, request.bookingStatus());
     }
 }

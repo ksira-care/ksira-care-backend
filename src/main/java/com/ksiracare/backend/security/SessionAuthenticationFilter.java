@@ -1,12 +1,11 @@
 package com.ksiracare.backend.security;
 
-import com.ksiracare.backend.entity.Therapist;
-import com.ksiracare.backend.repository.TherapistRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -14,22 +13,22 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Signs the request in from the session cookie. A missing, invalid or expired token — or an
- * account that has since been deactivated — simply leaves the request anonymous; protected
- * endpoints then answer 401. Registered only in the security chain (see SecurityConfig).
+ * Signs the request in from the session cookie, with the authority of the role the token was
+ * issued for. A missing, invalid or expired token, an account that has since been deactivated,
+ * or a session the account has since ended (e.g. by changing its password) simply leaves the
+ * request anonymous; protected endpoints then answer 401. Never registered as a servlet filter
+ * (see SecurityConfig).
  */
 public class SessionAuthenticationFilter extends OncePerRequestFilter {
 
     private final SessionCookies sessionCookies;
     private final JwtService jwtService;
-    private final TherapistRepository therapistRepository;
+    private final AccountDirectory accounts;
 
-    public SessionAuthenticationFilter(SessionCookies sessionCookies,
-                                       JwtService jwtService,
-                                       TherapistRepository therapistRepository) {
+    public SessionAuthenticationFilter(SessionCookies sessionCookies, JwtService jwtService, AccountDirectory accounts) {
         this.sessionCookies = sessionCookies;
         this.jwtService = jwtService;
-        this.therapistRepository = therapistRepository;
+        this.accounts = accounts;
     }
 
     @Override
@@ -37,16 +36,17 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         sessionCookies.read(request)
                 .flatMap(jwtService::verify)
-                .filter(this::isStillActive)
+                .filter(this::isCurrent)
+                .map(JwtService.VerifiedSession::principal)
                 .ifPresent(principal -> SecurityContextHolder.getContext().setAuthentication(
-                        UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of())));
+                        UsernamePasswordAuthenticationToken.authenticated(
+                                principal, null, List.of(new SimpleGrantedAuthority(principal.role().authority())))));
         chain.doFilter(request, response);
     }
 
-    /** Deactivating an account takes effect immediately, not when its session expires. */
-    private boolean isStillActive(TherapistPrincipal principal) {
-        return therapistRepository.findById(principal.therapistId())
-                .map(Therapist::isActive)
-                .orElse(false);
+    /** Deactivating an account, or ending its sessions, takes effect immediately — not when the token expires. */
+    private boolean isCurrent(JwtService.VerifiedSession session) {
+        SessionPrincipal principal = session.principal();
+        return accounts.isSessionCurrent(principal.role(), principal.accountId(), session.sessionVersion());
     }
 }
