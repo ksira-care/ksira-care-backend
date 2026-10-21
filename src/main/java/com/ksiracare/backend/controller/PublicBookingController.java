@@ -22,8 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Set;
 
 /**
- * Booking from the website, no sign-in. Only exists while {@code ksira.public-booking.enabled}
- * is on; otherwise these paths answer 404.
+ * Booking from the website, no sign-in. Switching {@code ksira.public-booking.enabled} off
+ * removes it (these paths then answer 404).
  */
 @RestController
 @RequestMapping("/public")
