@@ -30,6 +30,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -106,7 +107,7 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
         bookingRepository.save(booking);
 
         mvc.perform(get("/api/admin/bookings/{id}/aapta-options", booking.getId()).contextPath("/api").cookie(admin))
-                .andExpect(jsonPath("$.aaptas[*].aaptaId").value(hasItem(anika.getId().toString())))
+                .andExpect(jsonPath("$.aaptas[?(@.aaptaId == '%s')]".formatted(anika.getId()), hasSize(1)))
                 .andExpect(jsonPath("$.aaptas[*].aaptaId").value(not(hasItem(ravi.getId().toString()))));
         save(booking.getId(), ravi.getId(), false, version(booking.getId()))
                 .andExpect(status().isConflict())

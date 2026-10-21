@@ -83,7 +83,7 @@ minute.
 
 ### Adding an aapta (admin)
 
-Run in Neon's SQL editor. Passwords are stored as bcrypt hashes, never plain text:
+Normally from the admin console (`POST /admin/aaptas`). Without it, run in Neon's SQL editor. Passwords are stored as bcrypt hashes, never plain text:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- once
@@ -103,8 +103,9 @@ current session stops working on the next request.
 
 ### Adding an admin
 
-Admins are separate accounts in the `admins` table (an aapta's login doesn't open the admin
-console, and vice versa). Create the first one in Neon's SQL editor:
+Admins are accounts in the `admins` table. They sign in on the same page as aaptas and land in
+the admin console; an aapta's login never opens it. An email may belong to one account only, so
+don't reuse an aapta's email. Create the first admin in Neon's SQL editor:
 
 ```sql
 INSERT INTO admins (id, first_name, last_name, email, password, created_at, updated_at)

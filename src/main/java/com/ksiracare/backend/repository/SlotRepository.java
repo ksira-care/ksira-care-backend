@@ -30,9 +30,9 @@ public interface SlotRepository extends JpaRepository<Slot, UUID> {
             @Param("to") LocalDateTime to
     );
 
-    /** Open hours starting exactly at {@code slotTime}, of active aaptas, by name. */
+    /** Hours with {@code status} starting exactly at {@code slotTime}, of active aaptas, by name, with their languages loaded. */
     @Query("""
-            SELECT s FROM Slot s JOIN FETCH s.aapta a
+            SELECT s FROM Slot s JOIN FETCH s.aapta a LEFT JOIN FETCH a.languages
             WHERE s.slotTime = :slotTime AND s.status = :status AND a.active = TRUE
             ORDER BY a.firstName ASC, a.lastName ASC
             """)
