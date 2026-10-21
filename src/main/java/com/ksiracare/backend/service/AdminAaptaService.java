@@ -18,6 +18,7 @@ import com.ksiracare.backend.repository.AaptaRepository;
 import com.ksiracare.backend.repository.BookingRepository;
 import com.ksiracare.backend.repository.LanguageRepository;
 import com.ksiracare.backend.repository.SlotRepository;
+import com.ksiracare.backend.security.AccountDirectory;
 import com.ksiracare.backend.security.AdminPrincipal;
 import com.ksiracare.backend.time.PortalCalendar;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ import java.util.UUID;
 public class AdminAaptaService {
 
     private final AaptaRepository aaptaRepository;
+    private final AccountDirectory accounts;
     private final LanguageRepository languageRepository;
     private final BookingRepository bookingRepository;
     private final SlotRepository slotRepository;
@@ -69,7 +71,7 @@ public class AdminAaptaService {
     public AaptaProfileDto create(CreateAaptaRequestDto request) {
         // Stored lower-case so the database's unique constraint also catches "Aanya@…" vs "aanya@…".
         String email = Account.normaliseEmail(request.email());
-        if (aaptaRepository.existsByEmailIgnoreCase(email)) {
+        if (accounts.isEmailTaken(email, null)) {
             throw new EmailTakenException();
         }
         Aapta aapta = new Aapta(request.firstName().trim(), request.lastName().trim(), email,

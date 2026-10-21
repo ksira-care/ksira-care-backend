@@ -10,6 +10,7 @@ import com.ksiracare.backend.mapper.AaptaMapper;
 import com.ksiracare.backend.policy.AaptaProfileEditPolicy;
 import com.ksiracare.backend.repository.AaptaRepository;
 import com.ksiracare.backend.repository.LanguageRepository;
+import com.ksiracare.backend.security.AccountDirectory;
 import com.ksiracare.backend.security.SessionPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class AaptaService {
 
     private final AaptaRepository aaptaRepository;
+    private final AccountDirectory accounts;
     private final LanguageRepository languageRepository;
     private final AaptaProfileEditPolicy editPolicy;
     private final AaptaMapper aaptaMapper;
@@ -67,7 +69,7 @@ public class AaptaService {
         if (email.equals(aapta.getEmail())) {
             return;
         }
-        if (aaptaRepository.existsByEmailIgnoreCaseAndIdNot(email, aapta.getId())) {
+        if (accounts.isEmailTaken(email, aapta.getId())) {
             throw new EmailTakenException();
         }
         aapta.setEmail(email);

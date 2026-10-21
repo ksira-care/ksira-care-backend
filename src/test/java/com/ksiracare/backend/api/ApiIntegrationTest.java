@@ -31,6 +31,7 @@ class ApiIntegrationTest extends ApiTestSupport {
         assertThat(result.getResponse().getHeader("Set-Cookie")).contains("SameSite=Strict");
         assertThat(result.getResponse().getContentAsString())
                 .contains("\"email\":\"aapta@ksiracare.com\"")
+                .contains("\"role\":\"AAPTA\"")
                 .doesNotContain("token");
     }
 
@@ -162,19 +163,33 @@ class ApiIntegrationTest extends ApiTestSupport {
     // ── Admin ─────────────────────────────────────────────────
 
     @Test
-    void adminSignInSetsItsOwnCookieScopedToTheAdminApi() throws Exception {
-        MvcResult result = adminSignIn("admin@ksiracare.com", "password123");
+    void adminsSignInAtTheSameEndpointAndAreToldTheirRole() throws Exception {
+        MvcResult result = signIn("admin@ksiracare.com", "password123");
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
-        Cookie cookie = result.getResponse().getCookie(ADMIN_COOKIE);
+        Cookie cookie = result.getResponse().getCookie(COOKIE);
         assertThat(cookie).isNotNull();
         assertThat(cookie.isHttpOnly()).isTrue();
-        assertThat(cookie.getPath()).isEqualTo("/api/admin");
-        assertThat(result.getResponse().getCookie(COOKIE)).as("no aapta session").isNull();
+        assertThat(cookie.getPath()).isEqualTo("/api");
         assertThat(result.getResponse().getContentAsString())
-                .contains("\"adminId\"")
+                .contains("\"accountId\"")
                 .contains("\"email\":\"admin@ksiracare.com\"")
+                .contains("\"role\":\"ADMIN\"")
                 .doesNotContain("token");
+    }
+
+    @Test
+    void theSessionSaysWhoIsSignedInAndAsWhat() throws Exception {
+        mvc.perform(get("/api/auth/session").contextPath("/api").cookie(session()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("aapta@ksiracare.com"))
+                .andExpect(jsonPath("$.role").value("AAPTA"));
+        mvc.perform(get("/api/auth/session").contextPath("/api").cookie(adminSession()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("ADMIN"));
+        mvc.perform(get("/api/auth/session").contextPath("/api"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
 
     @Test
@@ -190,31 +205,12 @@ class ApiIntegrationTest extends ApiTestSupport {
     }
 
     @Test
-    void aaptaAndAdminAccountsAndSessionsDontCross() throws Exception {
-        // Each account list only answers its own sign-in endpoint.
-        assertThat(adminSignIn("aapta@ksiracare.com", "password123").getResponse().getStatus()).isEqualTo(401);
-        assertThat(signIn("admin@ksiracare.com", "password123").getResponse().getStatus()).isEqualTo(401);
-
-        // An aapta session doesn't open the admin API, and vice versa — even if the token
-        // is moved into the other cookie.
-        Cookie aapta = session();
-        Cookie admin = adminSession();
-        mvc.perform(get("/api/admin/me").contextPath("/api").cookie(aapta))
-                .andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/admin/me").contextPath("/api").cookie(new Cookie(ADMIN_COOKIE, aapta.getValue())))
-                .andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(admin))
-                .andExpect(status().isUnauthorized());
-        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(new Cookie(COOKIE, admin.getValue())))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void adminSignOutClearsOnlyTheAdminCookie() throws Exception {
-        mvc.perform(post("/api/admin/auth/logout").contextPath("/api"))
-                .andExpect(status().isNoContent())
-                .andExpect(cookie().maxAge(ADMIN_COOKIE, 0))
-                .andExpect(cookie().path(ADMIN_COOKIE, "/api/admin"))
-                .andExpect(cookie().doesNotExist(COOKIE));
+    void eachRoleOnlyOpensItsOwnPartOfTheApi() throws Exception {
+        mvc.perform(get("/api/admin/me").contextPath("/api").cookie(session()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(adminSession()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 }

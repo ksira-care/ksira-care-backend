@@ -10,7 +10,6 @@ import com.ksiracare.backend.security.SessionCookies;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -24,14 +23,15 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Stateless, cookie-based security with one filter chain per {@link Role}:
+ * Stateless, cookie-based security. Everyone signs in at {@code /auth/login}; the role in the
+ * session token decides what it opens:
  * <ul>
- *   <li>{@code /admin/**} — admin console; only the admin session cookie is read here.</li>
- *   <li>everything else — the aapta portal; only the aapta session cookie is read here.</li>
+ *   <li>{@code /admin/**} — the admin console, admins only;</li>
+ *   <li>{@code /auth/session}, {@code /auth/password} — any signed-in account;</li>
+ *   <li>everything else — the aapta portal, aaptas only.</li>
  * </ul>
- * A session for one role is therefore never accepted by the other's endpoints. Only sign-in and
- * sign-out are public. CSRF tokens aren't used: cookies are SameSite=Strict and the API only
- * accepts JSON, so other sites can't make authenticated requests.
+ * Signed in but the wrong role is 403; not signed in is 401. CSRF tokens aren't used: the cookie
+ * is SameSite=Strict and the API only accepts JSON, so other sites can't make authenticated requests.
  */
 @Configuration
 @EnableWebSecurity
@@ -43,31 +43,17 @@ public class SecurityConfig {
     private final AccountDirectory accounts;
 
     @Bean
-    @Order(1)
-    public SecurityFilterChain adminSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher("/admin/**")
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/admin/auth/login", "/admin/auth/logout").permitAll()
-                        .anyRequest().hasRole(Role.ADMIN.name()));
-        return withSession(http, Role.ADMIN).build();
-    }
-
-    @Bean
-    @Order(2)
-    public SecurityFilterChain aaptaSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/logout").permitAll()
-                .requestMatchers("/error").permitAll()
-                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
-                // Only reachable when springdoc is enabled (development).
-                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .anyRequest().hasRole(Role.AAPTA.name()));
-        return withSession(http, Role.AAPTA).build();
-    }
-
-    /** What every chain shares: stateless, no browser login forms, problem-format errors, one role's cookie. */
-    private HttpSecurity withSession(HttpSecurity http, Role role) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/logout").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        // Only reachable when springdoc is enabled (development).
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/auth/**").authenticated()
+                        .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
+                        .anyRequest().hasRole(Role.AAPTA.name()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
@@ -79,8 +65,9 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, denied) ->
                                 new ProblemAuthenticationEntryPoint(ErrorCode.FORBIDDEN, "Not allowed.")
                                         .commence(request, response, null)))
-                .addFilterBefore(new SessionAuthenticationFilter(role, sessionCookies, jwtService, accounts),
-                        UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new SessionAuthenticationFilter(sessionCookies, jwtService, accounts),
+                        UsernamePasswordAuthenticationFilter.class)
+                .build();
     }
 
     @Bean

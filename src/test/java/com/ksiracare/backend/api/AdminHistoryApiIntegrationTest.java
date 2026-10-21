@@ -186,8 +186,8 @@ class AdminHistoryApiIntegrationTest extends ApiTestSupport {
 
     @Test
     void onlyAdminsCanSeeOrExportHistory() throws Exception {
-        mvc.perform(get("/api/admin/history").contextPath("/api").cookie(session())).andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/admin/history/export").contextPath("/api").cookie(session())).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/history").contextPath("/api").cookie(session())).andExpect(status().isForbidden());
+        mvc.perform(post("/api/admin/history/export").contextPath("/api").cookie(session())).andExpect(status().isForbidden());
     }
 
     // ── helpers ──────────────────────────────────────────────

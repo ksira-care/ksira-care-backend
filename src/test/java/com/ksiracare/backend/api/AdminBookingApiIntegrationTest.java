@@ -190,7 +190,7 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
 
         mvc.perform(get("/api/admin/bookings").contextPath("/api").param("date", calendar.dateOf(soon).toString())
                         .cookie(session()))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
         mvc.perform(patch("/api/admin/bookings/{id}", booking.getId()).contextPath("/api")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"aaptaId\":\"%s\",\"bccEmailSent\":false,\"version\":0}".formatted(anika.getId())))

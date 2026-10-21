@@ -1,8 +1,8 @@
 package com.ksiracare.backend.security;
 
 /**
- * Who a session belongs to. Each role signs in through its own endpoints, carries its own
- * session cookie and may only call its own part of the API (see SecurityConfig).
+ * What kind of account a session belongs to. Everyone signs in at the same endpoint; the role is
+ * carried in the session token and decides which part of the API it opens (see SecurityConfig).
  */
 public enum Role {
     AAPTA,

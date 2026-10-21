@@ -118,10 +118,11 @@ Deactivate the same way: `UPDATE admins SET is_active = false WHERE email = '…
 
 - **The signed-in account always comes from the session cookie**, never from the URL — so
   nobody can read or change another aapta's data. Someone else's booking answers 404.
-- **Two roles, two sessions.** Aaptas use the portal API with the `ksira_session` cookie
-  (path `/api`); admins use `/admin/**` with `ksira_admin_session` (path `/api/admin`). Each
-  part of the API only reads its own cookie (one Spring Security chain per `Role`), and the
-  token carries the role, so a session never works for the other side.
+- **One sign-in, two roles.** Aaptas and admins sign in at `/auth/login`; the account the
+  email belongs to decides the role, which the session token carries. One `ksira_session`
+  cookie (path `/api`) serves both: `/admin/**` needs an admin session, the rest of the portal
+  API an aapta one (403 for the wrong role, 401 for none). An email belongs to one account
+  only, whatever its role.
 - **Ending sessions.** Each account has a session version, carried in its tokens. Changing the
   password raises it, so every older session ends on its next request, on every device; the
   device that made the change gets a fresh cookie. Deactivation ends sessions the same way.
@@ -140,9 +141,10 @@ Request bodies and sample responses for every endpoint: [docs/API.md](docs/API.m
 
 | Method | Path | |
 |--------|------|---|
-| `POST` | `/auth/login` | `{email, password}` → `{aaptaId, email}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
+| `POST` | `/auth/login` | aaptas and admins: `{email, password}` → `{accountId, email, role}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/auth/logout` | 204, clears the cookie |
-| `POST` | `/auth/password` | `{currentPassword, newPassword}` → 204 + a fresh session cookie; signs out every other device; `422 CURRENT_PASSWORD_INCORRECT` if the current one is wrong |
+| `GET`  | `/auth/session` | `{accountId, email, role}` of whoever is signed in; 401 if nobody |
+| `POST` | `/auth/password` | either role: `{currentPassword, newPassword}` → 204 + a fresh session cookie; signs out every other device; `422 CURRENT_PASSWORD_INCORRECT` if the current one is wrong |
 | `GET`  | `/aaptas/me` | profile; also the "am I signed in?" check (401 if not) |
 | `PATCH`| `/aaptas/me` | edit own profile — name, phone, date of birth, address, languages (same body as the admin edit) |
 | `GET`  | `/aaptas/me/dashboard-summary` | `{completedThisMonth, completedAllTime, activeSince}` |
@@ -155,9 +157,6 @@ Admin console:
 
 | Method | Path | |
 |--------|------|---|
-| `POST` | `/admin/auth/login` | `{email, password}` → `{adminId, email}` + httpOnly `ksira_admin_session` cookie (SameSite=Strict, 2 h) |
-| `POST` | `/admin/auth/logout` | 204, clears the admin cookie |
-| `POST` | `/admin/auth/password` | the same, for the admin's own password |
 | `GET`  | `/admin/me` | `{adminId, email, firstName, middleName, lastName}`; also the "am I signed in?" check |
 | `GET`  | `/admin/bookings?date=YYYY-MM-DD` | `{date, bookings: [...]}` — every booking that day (IST), cancelled ones included, with `editable`/`editableFrom` worked out by the server |
 | `GET`  | `/admin/bookings/{id}/form` | the website booking form as the client filled it: `{name, email, notes, consent, submittedAt}` |

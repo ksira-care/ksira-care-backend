@@ -22,7 +22,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 abstract class ApiTestSupport {
 
     static final String COOKIE = "ksira_session";
-    static final String ADMIN_COOKIE = "ksira_admin_session";
     static final String DEMO_PASSWORD = "password123";
 
     @Autowired
@@ -34,12 +33,12 @@ abstract class ApiTestSupport {
         mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
+    /** Aaptas and admins sign in the same way. */
     MvcResult signIn(String email, String password) throws Exception {
-        return login("/api/auth/login", email, password);
-    }
-
-    MvcResult adminSignIn(String email, String password) throws Exception {
-        return login("/api/admin/auth/login", email, password);
+        return mvc.perform(post("/api/auth/login").contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
+                .andReturn();
     }
 
     /** A session cookie for the demo aapta. */
@@ -47,19 +46,13 @@ abstract class ApiTestSupport {
         return session("aapta@ksiracare.com");
     }
 
-    Cookie session(String aaptaEmail) throws Exception {
-        return signIn(aaptaEmail, DEMO_PASSWORD).getResponse().getCookie(COOKIE);
+    /** A session cookie for any account, aapta or admin, with the demo password. */
+    Cookie session(String email) throws Exception {
+        return signIn(email, DEMO_PASSWORD).getResponse().getCookie(COOKIE);
     }
 
     /** A session cookie for the demo admin. */
     Cookie adminSession() throws Exception {
-        return adminSignIn("admin@ksiracare.com", DEMO_PASSWORD).getResponse().getCookie(ADMIN_COOKIE);
-    }
-
-    private MvcResult login(String path, String email, String password) throws Exception {
-        return mvc.perform(post(path).contextPath("/api")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
-                .andReturn();
+        return session("admin@ksiracare.com");
     }
 }

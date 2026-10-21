@@ -11,9 +11,9 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * Sessions live in httpOnly cookies: page scripts can't read them, so injected scripts can't
- * steal them. SameSite=Strict keeps other sites from sending them (CSRF). Each {@link Role} has
- * its own cookie name and path.
+ * The session lives in an httpOnly cookie: page scripts can't read it, so injected scripts can't
+ * steal it. SameSite=Strict keeps other sites from sending it (CSRF). One cookie serves every
+ * {@link Role}; the token inside says whose session it is.
  */
 @Component
 public class SessionCookies {
@@ -27,34 +27,32 @@ public class SessionCookies {
     }
 
     /** A cookie carrying a session token, living as long as the token does. */
-    public ResponseCookie issue(Role role, String token) {
-        return base(role, token).maxAge(maxAge).build();
+    public ResponseCookie issue(String token) {
+        return base(token).maxAge(maxAge).build();
     }
 
     /** Tells the browser to delete the cookie (same name and path, zero lifetime). */
-    public ResponseCookie clear(Role role) {
-        return base(role, "").maxAge(Duration.ZERO).build();
+    public ResponseCookie clear() {
+        return base("").maxAge(Duration.ZERO).build();
     }
 
-    public Optional<String> read(Role role, HttpServletRequest request) {
+    public Optional<String> read(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
             return Optional.empty();
         }
-        String name = settings.of(role).name();
         return Arrays.stream(cookies)
-                .filter(cookie -> name.equals(cookie.getName()))
+                .filter(cookie -> settings.name().equals(cookie.getName()))
                 .map(Cookie::getValue)
                 .filter(value -> !value.isBlank())
                 .findFirst();
     }
 
-    private ResponseCookie.ResponseCookieBuilder base(Role role, String value) {
-        AuthProperties.RoleCookie cookie = settings.of(role);
-        return ResponseCookie.from(cookie.name(), value)
+    private ResponseCookie.ResponseCookieBuilder base(String value) {
+        return ResponseCookie.from(settings.name(), value)
                 .httpOnly(true)
                 .secure(settings.secure())
                 .sameSite(settings.sameSite())
-                .path(cookie.path());
+                .path(settings.path());
     }
 }

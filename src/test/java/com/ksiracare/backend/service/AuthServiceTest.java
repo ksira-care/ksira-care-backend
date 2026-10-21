@@ -8,6 +8,7 @@ import com.ksiracare.backend.exception.InvalidCredentialsException;
 import com.ksiracare.backend.exception.TooManyLoginAttemptsException;
 import com.ksiracare.backend.security.AaptaPrincipal;
 import com.ksiracare.backend.security.AccountDirectory;
+import com.ksiracare.backend.security.AccountDirectory.RoleAccount;
 import com.ksiracare.backend.security.AdminPrincipal;
 import com.ksiracare.backend.security.JwtService;
 import com.ksiracare.backend.security.LoginAttemptLimiter;
@@ -17,14 +18,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -45,9 +45,9 @@ class AuthServiceTest {
         authService = new AuthService(accounts, encoder, jwtService, limiter);
         aanya = new Aapta("Aanya", "Mehta", "aapta@ksiracare.com", encoder.encode("password123"));
         meera = new Admin("Meera", "Iyer", "admin@ksiracare.com", encoder.encode("admin-password"));
-        doReturn(Optional.empty()).when(accounts).findByEmail(any(), anyString());
-        doReturn(Optional.of(aanya)).when(accounts).findByEmail(Role.AAPTA, "aapta@ksiracare.com");
-        doReturn(Optional.of(meera)).when(accounts).findByEmail(Role.ADMIN, "admin@ksiracare.com");
+        when(accounts.findByEmail(anyString())).thenReturn(List.of());
+        when(accounts.findByEmail("aapta@ksiracare.com")).thenReturn(List.of(new RoleAccount(Role.AAPTA, aanya)));
+        when(accounts.findByEmail("admin@ksiracare.com")).thenReturn(List.of(new RoleAccount(Role.ADMIN, meera)));
         when(jwtService.issue(any(), anyInt())).thenReturn("signed-token");
     }
 
@@ -57,58 +57,62 @@ class AuthServiceTest {
 
     @Test
     void correctDetailsStartASession() {
-        AuthService.LoginResult result = authService.login(Role.AAPTA, request("aapta@ksiracare.com", "password123"));
+        AuthService.LoginResult result = authService.login(request("aapta@ksiracare.com", "password123"));
 
         assertThat(result.principal()).isInstanceOf(AaptaPrincipal.class);
         assertThat(result.principal().email()).isEqualTo("aapta@ksiracare.com");
         assertThat(result.sessionToken()).isEqualTo("signed-token");
-        verify(limiter).recordSuccess("AAPTA:aapta@ksiracare.com");
+        verify(limiter).recordSuccess("aapta@ksiracare.com");
     }
 
     @Test
     void adminsSignInAsAdmins() {
-        AuthService.LoginResult result = authService.login(Role.ADMIN, request("admin@ksiracare.com", "admin-password"));
+        AuthService.LoginResult result = authService.login(request("admin@ksiracare.com", "admin-password"));
 
         assertThat(result.principal()).isInstanceOf(AdminPrincipal.class);
         verify(jwtService).issue(result.principal(), 0);
     }
 
     @Test
-    void anAccountCanOnlySignInThroughItsOwnRole() {
-        assertThatThrownBy(() -> authService.login(Role.ADMIN, request("aapta@ksiracare.com", "password123")))
-                .isInstanceOf(InvalidCredentialsException.class);
-        assertThatThrownBy(() -> authService.login(Role.AAPTA, request("admin@ksiracare.com", "admin-password")))
-                .isInstanceOf(InvalidCredentialsException.class);
+    void ifAnEmailWasGivenToBothRolesThePasswordDecides() {
+        Aapta sameEmail = new Aapta("Meera", "Iyer", "admin@ksiracare.com", encoder.encode("aapta-password"));
+        when(accounts.findByEmail("admin@ksiracare.com")).thenReturn(List.of(
+                new RoleAccount(Role.AAPTA, sameEmail), new RoleAccount(Role.ADMIN, meera)));
+
+        assertThat(authService.login(request("admin@ksiracare.com", "admin-password")).principal())
+                .isInstanceOf(AdminPrincipal.class);
+        assertThat(authService.login(request("admin@ksiracare.com", "aapta-password")).principal())
+                .isInstanceOf(AaptaPrincipal.class);
     }
 
     @Test
     void unknownEmailAndWrongPasswordFailIdentically() {
-        assertThatThrownBy(() -> authService.login(Role.AAPTA, request("aapta@ksiracare.com", "wrong")))
+        assertThatThrownBy(() -> authService.login(request("aapta@ksiracare.com", "wrong")))
                 .isInstanceOf(InvalidCredentialsException.class)
                 .hasMessage("Email or password is incorrect.");
-        assertThatThrownBy(() -> authService.login(Role.AAPTA, request("nobody@ksiracare.com", "wrong")))
+        assertThatThrownBy(() -> authService.login(request("nobody@ksiracare.com", "wrong")))
                 .isInstanceOf(InvalidCredentialsException.class)
                 .hasMessage("Email or password is incorrect.");
 
-        verify(limiter).recordFailure("AAPTA:aapta@ksiracare.com");
-        verify(limiter).recordFailure("AAPTA:nobody@ksiracare.com");
+        verify(limiter).recordFailure("aapta@ksiracare.com");
+        verify(limiter).recordFailure("nobody@ksiracare.com");
     }
 
     @Test
     void aDisabledAccountIsOnlyRevealedWithTheRightPassword() {
         meera.setActive(false);
 
-        assertThatThrownBy(() -> authService.login(Role.ADMIN, request("admin@ksiracare.com", "wrong")))
+        assertThatThrownBy(() -> authService.login(request("admin@ksiracare.com", "wrong")))
                 .isInstanceOf(InvalidCredentialsException.class);
-        assertThatThrownBy(() -> authService.login(Role.ADMIN, request("admin@ksiracare.com", "admin-password")))
+        assertThatThrownBy(() -> authService.login(request("admin@ksiracare.com", "admin-password")))
                 .isInstanceOf(AccountDisabledException.class);
     }
 
     @Test
     void aBlockedEmailIsRefusedWithoutCheckingThePassword() {
-        when(limiter.isBlocked("ADMIN:admin@ksiracare.com")).thenReturn(true);
+        when(limiter.isBlocked("admin@ksiracare.com")).thenReturn(true);
 
-        assertThatThrownBy(() -> authService.login(Role.ADMIN, request("admin@ksiracare.com", "admin-password")))
+        assertThatThrownBy(() -> authService.login(request("admin@ksiracare.com", "admin-password")))
                 .isInstanceOf(TooManyLoginAttemptsException.class);
         verify(jwtService, never()).issue(any(), anyInt());
     }

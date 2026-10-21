@@ -120,7 +120,7 @@ class AdminAvailabilityApiIntegrationTest extends ApiTestSupport {
     @Test
     void onlyAdminsCanSeeIt() throws Exception {
         mvc.perform(get("/api/admin/availability").contextPath("/api").param("date", day.toString()).cookie(session()))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isForbidden());
     }
 
     // ── helpers ──────────────────────────────────────────────

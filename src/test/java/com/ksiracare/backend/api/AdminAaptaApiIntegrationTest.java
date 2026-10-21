@@ -90,6 +90,20 @@ class AdminAaptaApiIntegrationTest extends ApiTestSupport {
     }
 
     @Test
+    void anAaptaCantTakeAnAdminsEmail() throws Exception {
+        // One sign-in serves both roles, so an email may belong to one account only.
+        create("Admin@ksiracare.com", "k7Rm2xQp9a", "[\"en\"]")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_TAKEN"));
+
+        Aapta neha = aapta("Neha", "Kapoor");
+        mvc.perform(patch("/api/admin/aaptas/{id}", neha.getId()).contextPath("/api").cookie(admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"email\": \"admin@ksiracare.com\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_TAKEN"));
+    }
+
+    @Test
     void anEmailCanOnlyBeUsedOnceWhateverItsCase() throws Exception {
         String email = unique("Twice");
         create(email, "k7Rm2xQp9a", "[\"en\"]").andExpect(status().isCreated());
@@ -278,22 +292,24 @@ class AdminAaptaApiIntegrationTest extends ApiTestSupport {
     @Test
     void adminsCanChangeTheirOwnPasswordTheSameWay() throws Exception {
         Admin priya = adminRepository.save(new Admin("Priya", "Nair", unique("Priya"), passwordEncoder.encode(DEMO_PASSWORD)));
-        Cookie other = adminSignIn(priya.getEmail(), DEMO_PASSWORD).getResponse().getCookie(ADMIN_COOKIE);
-        Cookie current = adminSignIn(priya.getEmail(), DEMO_PASSWORD).getResponse().getCookie(ADMIN_COOKIE);
+        Cookie other = session(priya.getEmail());
+        Cookie current = session(priya.getEmail());
 
-        Cookie refreshed = changePassword("/api/admin/auth/password", current, DEMO_PASSWORD, "brand-new-pass")
+        Cookie refreshed = changePassword("/api/auth/password", current, DEMO_PASSWORD, "brand-new-pass")
                 .andExpect(status().isNoContent())
-                .andReturn().getResponse().getCookie(ADMIN_COOKIE);
+                .andReturn().getResponse().getCookie(COOKIE);
 
         mvc.perform(get("/api/admin/me").contextPath("/api").cookie(other)).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/admin/me").contextPath("/api").cookie(refreshed)).andExpect(status().isOk());
-        assertThat(adminSignIn(priya.getEmail(), "brand-new-pass").getResponse().getStatus()).isEqualTo(200);
+        assertThat(signIn(priya.getEmail(), "brand-new-pass").getResponse().getStatus()).isEqualTo(200);
     }
 
     @Test
-    void changingAPasswordNeedsTheRightSession() throws Exception {
-        changePassword("/api/auth/password", admin, DEMO_PASSWORD, "brand-new-pass").andExpect(status().isUnauthorized());
-        changePassword("/api/admin/auth/password", session(), DEMO_PASSWORD, "brand-new-pass").andExpect(status().isUnauthorized());
+    void changingAPasswordNeedsASession() throws Exception {
+        mvc.perform(post("/api/auth/password").contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"password123\",\"newPassword\":\"brand-new-pass\"}"))
+                .andExpect(status().isUnauthorized());
     }
 
     // ── helpers ──────────────────────────────────────────────

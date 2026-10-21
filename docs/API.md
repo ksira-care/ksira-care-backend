@@ -4,7 +4,9 @@ Base URL: `/api` (e.g. `http://localhost:8080/api`).
 
 ## Conventions
 
-- **Sessions.** Sign-in sets an httpOnly cookie: `ksira_session` for aaptas, `ksira_admin_session` for admins (path `/api/admin`). Send requests with credentials. Every endpoint except login and logout needs that role's cookie; without it, the response is `401 UNAUTHENTICATED`.
+- **Sessions.** Aaptas and admins sign in at the same endpoint, and the response's `role` says which they are. Sign-in sets one httpOnly cookie, `ksira_session` (path `/api`), so send requests with credentials.
+  - `/admin/**` needs an admin session, `/auth/session` and `/auth/password` accept either role, and the rest of the API needs an aapta session.
+  - With no session the response is `401 UNAUTHENTICATED`; with the wrong role it is `403 FORBIDDEN`.
 - **Times** are epoch milliseconds (UTC). **Dates** are `YYYY-MM-DD` and **months** are `YYYY-MM`, both in the portal time zone (IST).
 - **Languages** are ISO 639-1 codes: `en`, `hi`, `mr`, `kn`.
 - **Enums**
@@ -29,9 +31,7 @@ Base URL: `/api` (e.g. `http://localhost:8080/api`).
 
 ---
 
-# Aapta portal
-
-## Auth
+# Auth (aaptas and admins)
 
 ### `POST /auth/login`
 
@@ -42,16 +42,26 @@ Base URL: `/api` (e.g. `http://localhost:8080/api`).
 `200` + `Set-Cookie: ksira_session=…`
 
 ```json
-{ "aaptaId": "6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b", "email": "aapta@ksiracare.com" }
+{ "accountId": "6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b", "email": "aapta@ksiracare.com", "role": "AAPTA" }
 ```
 
+`role` is `AAPTA` or `ADMIN`.
+
 Errors: `INVALID_CREDENTIALS`, `ACCOUNT_DISABLED`, `RATE_LIMITED`.
+
+### `GET /auth/session`
+
+Says who is signed in, and as what.
+
+`200`: the same body as `POST /auth/login`. `401` if nobody is signed in.
 
 ### `POST /auth/logout`
 
 `204` and the cookie is cleared. This always succeeds.
 
 ### `POST /auth/password`
+
+Works for either role.
 
 ```json
 { "currentPassword": "password123", "newPassword": "a-new-password" }
@@ -62,6 +72,10 @@ Errors: `INVALID_CREDENTIALS`, `ACCOUNT_DISABLED`, `RATE_LIMITED`.
 `204` + a fresh `Set-Cookie`. Every other session is signed out.
 
 Errors: `CURRENT_PASSWORD_INCORRECT`, `VALIDATION_FAILED`.
+
+---
+
+# Aapta portal
 
 ## Profile
 
@@ -181,31 +195,7 @@ Sessions still unmarked when their day ends (IST) automatically become `AAPTA_NO
 
 # Admin console
 
-## Auth
-
-### `POST /admin/auth/login`
-
-```json
-{ "email": "admin@ksiracare.com", "password": "password123" }
-```
-
-`200` + `Set-Cookie: ksira_admin_session=…`
-
-```json
-{ "adminId": "9a8b7c6d-…", "email": "admin@ksiracare.com" }
-```
-
-Errors: `INVALID_CREDENTIALS`, `ACCOUNT_DISABLED`, `RATE_LIMITED`.
-
-### `POST /admin/auth/logout`
-
-`204` and the cookie is cleared.
-
-### `POST /admin/auth/password`
-
-The body is the same as for `POST /auth/password`.
-
-`204` + a fresh cookie. Every other session is signed out.
+Admins sign in at `POST /auth/login` (see **Auth**).
 
 ### `GET /admin/me`
 
@@ -346,7 +336,7 @@ Each aapta's `slots` line up with `hours`, column for column.
 
 `201`: the profile, in the same shape as `GET /aaptas/me`.
 
-Errors: `EMAIL_TAKEN`, `VALIDATION_FAILED`.
+Errors: `EMAIL_TAKEN` (also when an admin already uses the email), `VALIDATION_FAILED`.
 
 ### `GET /admin/aaptas/{aaptaId}`
 

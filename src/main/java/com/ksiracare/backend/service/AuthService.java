@@ -11,22 +11,22 @@ import com.ksiracare.backend.exception.TooManyLoginAttemptsException;
 import com.ksiracare.backend.security.AccountDirectory;
 import com.ksiracare.backend.security.JwtService;
 import com.ksiracare.backend.security.LoginAttemptLimiter;
-import com.ksiracare.backend.security.Role;
 import com.ksiracare.backend.security.SessionPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 /**
- * Checks an email and password for one {@link Role} and starts a session.
+ * Checks an email and password and starts a session. There is one sign-in for everyone: the
+ * account the email belongs to decides whether the session is an aapta's or an admin's.
  * <ul>
  *   <li>Unknown email and wrong password give the same error, and take the same time,
  *       so the endpoint can't be used to find out who has an account.</li>
  *   <li>The account-disabled message is only shown once the password is right.</li>
- *   <li>Repeated failures are rate-limited per role and email.</li>
+ *   <li>Repeated failures are rate-limited per email.</li>
  * </ul>
  */
 @Service
@@ -71,27 +71,36 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public LoginResult login(Role role, LoginRequestDto request) {
+    public LoginResult login(LoginRequestDto request) {
         String email = request.email().trim();
-        String limiterKey = role.name() + ":" + email;
-        if (attemptLimiter.isBlocked(limiterKey)) {
+        if (attemptLimiter.isBlocked(email)) {
             throw new TooManyLoginAttemptsException("Too many sign-in attempts. Please wait a few minutes and try again.");
         }
 
-        Optional<? extends Account> account = accounts.findByEmail(role, email);
-        String storedHash = account.map(Account::getPassword).orElse(dummyHash);
-        boolean passwordMatches = passwordEncoder.matches(request.password(), storedHash);
-
-        if (account.isEmpty() || !passwordMatches) {
-            attemptLimiter.recordFailure(limiterKey);
+        AccountDirectory.RoleAccount match = passwordMatch(accounts.findByEmail(email), request.password());
+        if (match == null) {
+            attemptLimiter.recordFailure(email);
             throw new InvalidCredentialsException("Email or password is incorrect.");
         }
-        if (!account.get().isActive()) {
+        Account account = match.account();
+        if (!account.isActive()) {
             throw new AccountDisabledException("This account is inactive. Please contact your coordinator.");
         }
 
-        attemptLimiter.recordSuccess(limiterKey);
-        SessionPrincipal principal = SessionPrincipal.of(role, account.get().getId(), account.get().getEmail());
-        return new LoginResult(principal, jwtService.issue(principal, account.get().getSessionVersion()));
+        attemptLimiter.recordSuccess(email);
+        SessionPrincipal principal = SessionPrincipal.of(match.role(), account.getId(), account.getEmail());
+        return new LoginResult(principal, jwtService.issue(principal, account.getSessionVersion()));
+    }
+
+    /** The account whose password this is, or null. An unknown email still costs one hash check. */
+    private AccountDirectory.RoleAccount passwordMatch(List<AccountDirectory.RoleAccount> candidates, String password) {
+        if (candidates.isEmpty()) {
+            passwordEncoder.matches(password, dummyHash);
+            return null;
+        }
+        return candidates.stream()
+                .filter(candidate -> passwordEncoder.matches(password, candidate.account().getPassword()))
+                .findFirst()
+                .orElse(null);
     }
 }
