@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.LocalDateTime;
@@ -29,7 +30,9 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -106,6 +109,96 @@ class AdminAaptaApiIntegrationTest extends ApiTestSupport {
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 
+    // ── edit (one format for the aapta portal and the admin console) ──
+
+    @Test
+    void theRosterUsesTheSameProfileFormatAsTheAaptaPortal() throws Exception {
+        Aapta neha = aapta("Neha", "Kapoor");
+        String portal = mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(session(neha.getEmail())))
+                .andReturn().getResponse().getContentAsString();
+
+        mvc.perform(get("/api/admin/aaptas/{id}", neha.getId()).contextPath("/api").cookie(admin))
+                .andExpect(status().isOk())
+                .andExpect(content().json(portal, JsonCompareMode.STRICT));
+        mvc.perform(get("/api/admin/aaptas").contextPath("/api").cookie(admin))
+                .andExpect(jsonPath("$.aaptas[?(@.aaptaId == '%s')].phone".formatted(neha.getId())).exists());
+    }
+
+    @Test
+    void anAaptaEditsTheirOwnDetailsAndTheAdminSeesTheSame() throws Exception {
+        Aapta neha = aapta("Neha", "Kapoor");
+        neha.setMiddleName("R");
+        aaptaRepository.save(neha);
+        Cookie session = session(neha.getEmail());
+
+        mvc.perform(patch("/api/aaptas/me").contextPath("/api").cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"firstName": "Neha ", "middleName": "", "phone": "+919812345678",
+                                 "dateOfBirth": "1994-06-02", "address": "Baner, Pune", "languages": ["en", "mr"]}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.firstName").value("Neha"))
+                .andExpect(jsonPath("$.middleName").doesNotExist())
+                .andExpect(jsonPath("$.lastName").value("Kapoor"))
+                .andExpect(jsonPath("$.phone").value("+919812345678"))
+                .andExpect(jsonPath("$.languages[*]", containsInAnyOrder("en", "mr")));
+
+        mvc.perform(get("/api/admin/aaptas/{id}", neha.getId()).contextPath("/api").cookie(admin))
+                .andExpect(jsonPath("$.address").value("Baner, Pune"))
+                .andExpect(jsonPath("$.dateOfBirth").value("1994-06-02"));
+    }
+
+    @Test
+    void eachSideCanOnlyChangeItsOwnFields() throws Exception {
+        Aapta neha = aapta("Neha", "Kapoor");
+
+        mvc.perform(patch("/api/aaptas/me").contextPath("/api").cookie(session(neha.getEmail()))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"email\": \"new@example.com\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FIELD_NOT_EDITABLE"));
+        mvc.perform(patch("/api/admin/aaptas/{id}", neha.getId()).contextPath("/api").cookie(admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"phone\": \"+919812345678\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FIELD_NOT_EDITABLE"));
+    }
+
+    @Test
+    void anAdminChangingTheEmailMovesTheLoginAndSignsTheAaptaOut() throws Exception {
+        Aapta neha = aapta("Neha", "Kapoor");
+        Cookie session = session(neha.getEmail());
+        String newEmail = unique("NehaNew");
+
+        mvc.perform(patch("/api/admin/aaptas/{id}", neha.getId()).contextPath("/api").cookie(admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\": \"%s\", \"languages\": [\"kn\"]}".formatted(newEmail.toUpperCase())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value(newEmail))
+                .andExpect(jsonPath("$.languages[*]", containsInAnyOrder("kn")));
+
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(session)).andExpect(status().isUnauthorized());
+        assertThat(signIn(neha.getEmail(), DEMO_PASSWORD).getResponse().getStatus()).isEqualTo(401);
+        assertThat(signIn(newEmail, DEMO_PASSWORD).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void editsAreValidated() throws Exception {
+        Aapta neha = aapta("Neha", "Kapoor");
+        Aapta other = aapta("Other", "Person");
+        Cookie session = session(neha.getEmail());
+
+        for (String body : new String[]{"{\"phone\": \"12-34\"}", "{\"firstName\": \"  \"}",
+                "{\"dateOfBirth\": \"2999-01-01\"}", "{\"languages\": []}"}) {
+            mvc.perform(patch("/api/aaptas/me").contextPath("/api").cookie(session)
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        mvc.perform(patch("/api/admin/aaptas/{id}", neha.getId()).contextPath("/api").cookie(admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"email\": \"%s\"}".formatted(other.getEmail())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("EMAIL_TAKEN"));
+    }
+
     // ── remove ───────────────────────────────────────────────
 
     @Test
@@ -142,6 +235,8 @@ class AdminAaptaApiIntegrationTest extends ApiTestSupport {
         mvc.perform(get("/api/admin/aaptas").contextPath("/api").cookie(admin))
                 .andExpect(jsonPath("$.aaptas[*].aaptaId", not(hasItem(dev.getId().toString()))));
         mvc.perform(delete("/api/admin/aaptas/{id}", dev.getId()).contextPath("/api").cookie(admin))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/admin/aaptas/{id}", dev.getId()).contextPath("/api").cookie(admin))
                 .andExpect(status().isNotFound());
     }
 

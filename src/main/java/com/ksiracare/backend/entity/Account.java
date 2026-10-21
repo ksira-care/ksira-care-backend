@@ -16,6 +16,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -75,6 +76,11 @@ public abstract class Account {
         this.lastName = lastName;
         this.email = email;
         this.password = passwordHash;
+    }
+
+    /** How emails are stored: trimmed and lower-case, so uniqueness and sign-in ignore case. */
+    public static String normaliseEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     /** Signs the account out everywhere: every session issued before now stops working. */

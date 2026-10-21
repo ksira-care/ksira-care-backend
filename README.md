@@ -142,6 +142,7 @@ Deactivate the same way: `UPDATE admins SET is_active = false WHERE email = '…
 | `POST` | `/auth/logout` | 204, clears the cookie |
 | `POST` | `/auth/password` | `{currentPassword, newPassword}` → 204 + a fresh session cookie; signs out every other device; `422 CURRENT_PASSWORD_INCORRECT` if the current one is wrong |
 | `GET`  | `/aaptas/me` | profile; also the "am I signed in?" check (401 if not) |
+| `PATCH`| `/aaptas/me` | edit own profile — name, phone, date of birth, address, languages (same body as the admin edit) |
 | `GET`  | `/aaptas/me/dashboard-summary` | `{completedThisMonth, completedAllTime, activeSince}` |
 | `GET`  | `/aaptas/me/slots?startTime&endTime` | `{slots: [{id, time, status}]}` — every session hour in the range |
 | `POST` | `/aaptas/me/slots?startTime&endTime` | body `[{id, time, status}]` — opens/closes only the hours sent; answers like `GET` |
@@ -161,7 +162,9 @@ Admin console:
 | `GET`  | `/admin/bookings/{id}/aapta-options` | `{aaptas: [...]}` — the current aapta, then active aaptas who opened that hour |
 | `PATCH`| `/admin/bookings/{id}` | `{aaptaId, bccEmailSent, version}` — "Add" / "Update"; answers with the updated row |
 | `POST` | `/admin/bookings/{id}/cancel` | `{reason, version}` — calls the session off; answers with the updated row |
-| `GET`  | `/admin/aaptas` | `{aaptas: [{aaptaId, firstName, middleName, lastName, email, languages}]}` — everyone who can sign in, by name |
+| `GET`  | `/admin/aaptas` | `{aaptas: [...]}` — everyone who can sign in, by name, each in the aapta's own profile format |
+| `GET`  | `/admin/aaptas/{id}` | one aapta's profile (same format as `GET /aaptas/me`) |
+| `PATCH`| `/admin/aaptas/{id}` | edit an aapta — email (their login) and languages (same body as `PATCH /aaptas/me`) |
 | `POST` | `/admin/aaptas` | `{firstName, middleName?, lastName, email, languages: ["en", …], password}` → 201; `409 EMAIL_TAKEN` |
 | `DELETE`| `/admin/aaptas/{id}` | removes the aapta → `{aaptaId, unallocatedBookings}` |
 | `GET`  | `/admin/languages` | `{languages: [{code, name}]}` — the languages aaptas can be given |
@@ -186,6 +189,11 @@ Booking rules in the admin console:
 - **Adding an aapta:** the admin sets their login (email, stored lower-case and unique) and a
   first password (8–72 characters) and shares it with them; the aapta can change it with
   `POST /auth/password`. Languages are ISO 639-1 codes — the UI formats them for display.
+- **Editing an aapta:** one profile format and one edit body for both sides, so the portal and
+  the console always agree. Only the fields sent change (`""` clears middle name, phone or
+  address). Aaptas change their name and personal details; admins change the login email and
+  languages; both change languages. Anything else is `403 FIELD_NOT_EDITABLE`. A new email signs
+  the aapta out everywhere.
 - **Removing an aapta** is a soft delete, so their bookings and history stay intact: the
   account is deactivated (login and any open session stop at once), their upcoming sessions go
   back to unallocated (shown with "was …"), and their future open hours are closed. Their email

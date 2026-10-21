@@ -7,8 +7,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * The signed-in aapta's profile. Also used by the portal on every page load to
- * check the session and show the aapta's name.
+ * An aapta's profile, in one format everywhere: their own portal ({@code GET /aaptas/me}, also
+ * the portal's "am I signed in?" check) and the admin console's roster and edit form.
  *
  * @param phone       E.164, e.g. "+919876543210"
  * @param dateOfBirth ISO date, e.g. "1991-03-14"

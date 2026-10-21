@@ -16,6 +16,9 @@ public interface AccountRepository<T extends Account> extends JpaRepository<T, U
     /** Whether any account, active or not, already signs in with this email. */
     boolean existsByEmailIgnoreCase(String email);
 
+    /** Whether another account already signs in with this email. */
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
+
     /**
      * Cheap per-request check that a session is still good: the account exists, hasn't been
      * deactivated, and the session was issued under its current session version.

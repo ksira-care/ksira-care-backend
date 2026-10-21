@@ -2,9 +2,10 @@ package com.ksiracare.backend.service;
 
 import com.ksiracare.backend.dto.request.CreateAaptaRequestDto;
 import com.ksiracare.backend.dto.response.AaptaRemovedDto;
-import com.ksiracare.backend.dto.response.AaptaSummaryDto;
+import com.ksiracare.backend.dto.response.AaptaProfileDto;
 import com.ksiracare.backend.dto.response.LanguageDto;
 import com.ksiracare.backend.entity.Aapta;
+import com.ksiracare.backend.entity.Account;
 import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.enums.BookingEventType;
@@ -27,9 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -43,8 +42,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminAaptaService {
 
-    private static final String EMAIL_TAKEN = "An account with this email already exists (it may belong to a removed aapta).";
-
     private final AaptaRepository aaptaRepository;
     private final LanguageRepository languageRepository;
     private final BookingRepository bookingRepository;
@@ -54,9 +51,10 @@ public class AdminAaptaService {
     private final PasswordEncoder passwordEncoder;
     private final PortalCalendar calendar;
 
+    /** Everyone who can sign in, by name, in the same profile format the aapta sees. */
     @Transactional(readOnly = true)
-    public List<AaptaSummaryDto> getRoster() {
-        return aaptaRepository.findActiveWithLanguages().stream().map(mapper::toSummary).toList();
+    public List<AaptaProfileDto> getRoster() {
+        return aaptaRepository.findActiveWithLanguages().stream().map(mapper::toProfile).toList();
     }
 
     /** The languages aaptas can be given, by name. */
@@ -68,20 +66,20 @@ public class AdminAaptaService {
     }
 
     @Transactional
-    public AaptaSummaryDto create(CreateAaptaRequestDto request) {
+    public AaptaProfileDto create(CreateAaptaRequestDto request) {
         // Stored lower-case so the database's unique constraint also catches "Aanya@…" vs "aanya@…".
-        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        String email = Account.normaliseEmail(request.email());
         if (aaptaRepository.existsByEmailIgnoreCase(email)) {
-            throw new EmailTakenException(EMAIL_TAKEN);
+            throw new EmailTakenException();
         }
         Aapta aapta = new Aapta(request.firstName().trim(), request.lastName().trim(), email,
                 passwordEncoder.encode(request.password()));
         aapta.setMiddleName(StringUtils.hasText(request.middleName()) ? request.middleName().trim() : null);
-        aapta.setLanguages(new HashSet<>(languageRepository.findAllByCodeIn(request.languages())));
+        aapta.setLanguages(languageRepository.findSet(request.languages()));
         try {
-            return mapper.toSummary(aaptaRepository.saveAndFlush(aapta));
+            return mapper.toProfile(aaptaRepository.saveAndFlush(aapta));
         } catch (DataIntegrityViolationException raceWithAnotherAdmin) {
-            throw new EmailTakenException(EMAIL_TAKEN);
+            throw new EmailTakenException();
         }
     }
 
