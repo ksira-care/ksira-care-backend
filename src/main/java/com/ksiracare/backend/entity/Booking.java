@@ -3,8 +3,6 @@ package com.ksiracare.backend.entity;
 import com.ksiracare.backend.enums.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -26,7 +24,7 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class Booking {
+public class Booking extends Timestamped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -110,14 +108,6 @@ public class Booking {
 
     @Version
     private Long version;
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 
     /**
      * Gives the session to the aapta who owns {@code slot}: that hour becomes booked, the previous

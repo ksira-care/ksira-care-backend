@@ -12,10 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.Hibernate;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
@@ -28,7 +25,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public abstract class Account {
+public abstract class Account extends Timestamped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -62,13 +59,6 @@ public abstract class Account {
     @Setter(AccessLevel.NONE)
     @Column(name = "session_version", nullable = false)
     private int sessionVersion;
-
-    @CreationTimestamp
-    @Column(updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    private LocalDateTime updatedAt;
 
     /** {@code passwordHash} must already be BCrypt-encoded. */
     protected Account(String firstName, String lastName, String email, String passwordHash) {

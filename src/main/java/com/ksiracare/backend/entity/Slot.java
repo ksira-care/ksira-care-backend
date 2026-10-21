@@ -3,8 +3,6 @@ package com.ksiracare.backend.entity;
 import com.ksiracare.backend.enums.SlotStatus;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -25,7 +23,7 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class Slot {
+public class Slot extends Timestamped {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -44,14 +42,6 @@ public class Slot {
 
     @Version
     private Long version;
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 
     public Slot(Aapta aapta, LocalDateTime slotTime, SlotStatus status) {
         this.aapta = aapta;
