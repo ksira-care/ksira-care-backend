@@ -154,6 +154,22 @@ Request bodies and sample responses for every endpoint: [docs/API.md](docs/API.m
 | `GET`  | `/bookings?startTime&endTime` | `{bookings: [...]}`, cancelled ones excluded |
 | `PATCH`| `/bookings/{id}` | `{bookingStatus}`: `COMPLETED` / `CLIENT_NO_SHOW` once started and on the session's own day (IST); `PENDING` undoes a mark the same day |
 
+Public website (no sign-in; only while `KSIRA_PUBLIC_BOOKING_ENABLED=true`, otherwise 404):
+
+| Method | Path | |
+|--------|------|---|
+| `GET`  | `/public/availability?startTime&endTime&languages=hi,en` | `{hours: [{startTime, endTime}]}` — hours a client speaking any of those languages can book |
+| `POST` | `/public/bookings` | `{name, email, startTime, languages, notes?, consent}` → `201 {bookingId, startTime, endTime}`; arrives unallocated on the Today page |
+
+- **Bookable hours:** from 2 h ahead (`ksira.public-booking.lead-time`: book at 14:00, the first
+  offer is 16:00) to the end of the booking window, where an aapta who speaks one of the
+  client's languages is free. Every client still waiting for an aapta at that hour must be able
+  to get one of their own (a matching, not a head count); `409 TIME_NOT_AVAILABLE` if the hour
+  was just taken, `422 INVALID_SLOT_TIME` if it isn't bookable at all.
+- **Abuse:** 5 bookings per client address per hour (`429 RATE_LIMITED`). In production the
+  address comes from `X-Forwarded-For` as set by Render's proxy.
+- **Payment:** not taken yet (Razorpay comes later); a booking is confirmed when it is made.
+
 Admin console:
 
 | Method | Path | |
@@ -161,7 +177,7 @@ Admin console:
 | `GET`  | `/admin/me` | `{adminId, email, firstName, middleName, lastName}`; also the "am I signed in?" check |
 | `GET`  | `/admin/bookings?date=YYYY-MM-DD` | `{date, bookings: [...]}` — every booking that day (IST), cancelled ones included, with `editable`/`editableFrom` worked out by the server |
 | `GET`  | `/admin/bookings/{id}/form` | the website booking form as the client filled it: `{name, email, notes, consent, submittedAt}` |
-| `GET`  | `/admin/bookings/{id}/aapta-options` | `{aaptas: [...]}` — the current aapta, then active aaptas who opened that hour |
+| `GET`  | `/admin/bookings/{id}/aapta-options` | `{aaptas: [...]}` — the current aapta, then active aaptas who opened that hour and speak one of the client's languages |
 | `PATCH`| `/admin/bookings/{id}` | `{aaptaId, bccEmailSent, version}` — "Add" / "Update"; answers with the updated row |
 | `POST` | `/admin/bookings/{id}/cancel` | `{reason, version}` — calls the session off; answers with the updated row |
 | `GET`  | `/admin/aaptas` | `{aaptas: [...]}` — everyone who can sign in, by name, each in the aapta's own profile format |
@@ -177,7 +193,8 @@ Booking rules in the admin console:
 
 - **When:** an admin may change a booking from **24 h before it starts until it starts**
   (`ksira.admin.booking-action-window`); otherwise it is view-only (`409 BOOKING_NOT_EDITABLE`).
-- **Aapta:** only someone who opened that hour (`409 AAPTA_NOT_AVAILABLE` otherwise). Their hour
+- **Aapta:** only someone who opened that hour and speaks one of the client's languages
+  (`409 AAPTA_NOT_AVAILABLE` otherwise). Their hour
   becomes booked; on a change, the previous aapta's hour opens again.
 - **BCC email:** set by the admin; changing the aapta leaves it as it was.
 - **Cancelling:** any date, any time — not limited to the 24-hour window — as long as the aapta

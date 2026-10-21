@@ -19,4 +19,14 @@ public enum Language {
     public String isoCode() {
         return isoCode;
     }
+
+    /** "hi" → HINDI. */
+    public static Language fromIsoCode(String isoCode) {
+        for (Language language : values()) {
+            if (language.isoCode.equalsIgnoreCase(isoCode.trim())) {
+                return language;
+            }
+        }
+        throw new IllegalArgumentException("Unknown language code: " + isoCode);
+    }
 }

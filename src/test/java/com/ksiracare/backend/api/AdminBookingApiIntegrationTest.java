@@ -5,9 +5,11 @@ import com.ksiracare.backend.entity.Aapta;
 import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.enums.BookingStatus;
+import com.ksiracare.backend.enums.Language;
 import com.ksiracare.backend.enums.SlotStatus;
 import com.ksiracare.backend.repository.AaptaRepository;
 import com.ksiracare.backend.repository.BookingRepository;
+import com.ksiracare.backend.repository.LanguageRepository;
 import com.ksiracare.backend.repository.SlotRepository;
 import com.ksiracare.backend.time.EpochTime;
 import com.ksiracare.backend.time.PortalCalendar;
@@ -45,6 +47,7 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
     @Autowired private AaptaRepository aaptaRepository;
     @Autowired private SlotRepository slotRepository;
     @Autowired private BookingRepository bookingRepository;
+    @Autowired private LanguageRepository languageRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private PortalCalendar calendar;
 
@@ -91,6 +94,24 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
         save(cancelled.getId(), anika.getId(), false, version(cancelled.getId()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("BOOKING_NOT_EDITABLE"));
+    }
+
+    @Test
+    void onlyAaptasWhoSpeakTheClientsLanguageCanTakeIt() throws Exception {
+        anika.setLanguages(languageRepository.findSet(List.of(Language.KANNADA, Language.ENGLISH)));
+        ravi.setLanguages(languageRepository.findSet(List.of(Language.MARATHI)));
+        aaptaRepository.saveAll(List.of(anika, ravi));
+        Booking booking = booking(soon, "Farah Ali");
+        booking.setCustomerPreferredLanguages(languageRepository.findSet(List.of(Language.KANNADA)));
+        bookingRepository.save(booking);
+
+        mvc.perform(get("/api/admin/bookings/{id}/aapta-options", booking.getId()).contextPath("/api").cookie(admin))
+                .andExpect(jsonPath("$.aaptas[*].aaptaId").value(hasItem(anika.getId().toString())))
+                .andExpect(jsonPath("$.aaptas[*].aaptaId").value(not(hasItem(ravi.getId().toString()))));
+        save(booking.getId(), ravi.getId(), false, version(booking.getId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("AAPTA_NOT_AVAILABLE"));
+        save(booking.getId(), anika.getId(), false, version(booking.getId())).andExpect(status().isOk());
     }
 
     @Test

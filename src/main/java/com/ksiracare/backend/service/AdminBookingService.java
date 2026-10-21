@@ -7,14 +7,17 @@ import com.ksiracare.backend.dto.response.AdminBookingDto;
 import com.ksiracare.backend.dto.response.BookingFormDto;
 import com.ksiracare.backend.entity.Aapta;
 import com.ksiracare.backend.entity.Booking;
+import com.ksiracare.backend.entity.LanguageEntity;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.enums.BookingEventType;
+import com.ksiracare.backend.enums.Language;
 import com.ksiracare.backend.enums.SlotStatus;
 import com.ksiracare.backend.exception.AaptaNotAvailableException;
 import com.ksiracare.backend.exception.ApiException;
 import com.ksiracare.backend.exception.ErrorCode;
 import com.ksiracare.backend.exception.ResourceNotFoundException;
 import com.ksiracare.backend.mapper.AdminBookingMapper;
+import com.ksiracare.backend.policy.AaptaMatchPolicy;
 import com.ksiracare.backend.policy.AdminBookingPolicy;
 import com.ksiracare.backend.repository.BookingRepository;
 import com.ksiracare.backend.repository.SlotRepository;
@@ -46,6 +49,7 @@ public class AdminBookingService {
     private final SlotRepository slotRepository;
     private final BookingHistory history;
     private final AdminBookingPolicy policy;
+    private final AaptaMatchPolicy matchPolicy;
     private final AdminBookingMapper mapper;
     private final PortalCalendar calendar;
 
@@ -64,7 +68,10 @@ public class AdminBookingService {
         return mapper.toForm(find(bookingId));
     }
 
-    /** The current aapta (if any), then every active aapta who opened that hour. */
+    /**
+     * The current aapta (if any), then every active aapta who opened that hour and speaks one of
+     * the client's languages.
+     */
     @Transactional(readOnly = true)
     public List<AaptaRefDto> getAaptaOptions(UUID bookingId) {
         Booking booking = find(bookingId);
@@ -73,7 +80,9 @@ public class AdminBookingService {
             options.add(mapper.toRef(booking.getAapta()));
         }
         slotRepository.findAtTimeWithStatus(booking.getStartTime(), SlotStatus.AAPTA_AVAILABLE).stream()
-                .map(slot -> mapper.toRef(slot.getAapta()))
+                .map(Slot::getAapta)
+                .filter(aapta -> speaksClientsLanguage(aapta, booking))
+                .map(mapper::toRef)
                 .forEach(options::add);
         return options;
     }
@@ -91,7 +100,7 @@ public class AdminBookingService {
 
         Aapta current = booking.getAapta();
         if (current == null || !current.getId().equals(request.aaptaId())) {
-            Slot slot = openSlot(request.aaptaId(), booking.getStartTime());
+            Slot slot = openSlot(request.aaptaId(), booking);
             booking.allocateTo(slot, now);
             history.record(booking, current == null ? BookingEventType.AAPTA_ALLOCATED : BookingEventType.AAPTA_REALLOCATED,
                     admin, current, slot.getAapta(), now, null);
@@ -132,11 +141,20 @@ public class AdminBookingService {
         return toRow(saved, history.summarise(List.of(saved.getId())).get(saved.getId()), now);
     }
 
-    private Slot openSlot(UUID aaptaId, LocalDateTime start) {
-        return slotRepository.findForAaptaAt(aaptaId, start)
-                .filter(slot -> slot.getStatus() == SlotStatus.AAPTA_AVAILABLE && slot.getAapta().isActive())
+    private Slot openSlot(UUID aaptaId, Booking booking) {
+        Slot slot = slotRepository.findForAaptaAt(aaptaId, booking.getStartTime())
+                .filter(open -> open.getStatus() == SlotStatus.AAPTA_AVAILABLE && open.getAapta().isActive())
                 .orElseThrow(() -> new AaptaNotAvailableException("That aapta hasn't opened this hour, or it's no longer free."));
+        if (!speaksClientsLanguage(slot.getAapta(), booking)) {
+            throw new AaptaNotAvailableException("That aapta doesn't speak any of the client's languages.");
+        }
+        return slot;
     }
+
+    private boolean speaksClientsLanguage(Aapta aapta, Booking booking) {
+        return matchPolicy.canTake(LanguageEntity.codes(aapta.getLanguages()), LanguageEntity.codes(booking.getCustomerPreferredLanguages()));
+    }
+
 
     private AdminBookingDto toRow(Booking booking, BookingHistory.Summary summary, LocalDateTime now) {
         return mapper.toRow(booking, summary.previousAapta(), summary.cancelReason(),

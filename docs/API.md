@@ -24,7 +24,7 @@ Base URL: `/api` (e.g. `http://localhost:8080/api`).
 | `UNAUTHENTICATED`, `INVALID_CREDENTIALS` | 401 |
 | `ACCOUNT_DISABLED`, `FORBIDDEN`, `FIELD_NOT_EDITABLE` | 403 |
 | `NOT_FOUND` | 404 |
-| `SLOT_BOOKED`, `BOOKING_STATUS_CHANGE_NOT_ALLOWED`, `BOOKING_NOT_EDITABLE`, `BOOKING_NOT_CANCELLABLE`, `EMAIL_TAKEN`, `AAPTA_NOT_AVAILABLE`, `CONCURRENT_UPDATE` | 409 |
+| `SLOT_BOOKED`, `BOOKING_STATUS_CHANGE_NOT_ALLOWED`, `BOOKING_NOT_EDITABLE`, `BOOKING_NOT_CANCELLABLE`, `EMAIL_TAKEN`, `AAPTA_NOT_AVAILABLE`, `TIME_NOT_AVAILABLE`, `CONCURRENT_UPDATE` | 409 |
 | `INVALID_SLOT_TIME`, `CURRENT_PASSWORD_INCORRECT` | 422 |
 | `RATE_LIMITED` | 429 |
 | `INTERNAL_ERROR` | 500 |
@@ -214,6 +214,57 @@ Sessions still unmarked when their day ends (IST) automatically become `AAPTA_NO
 
 ---
 
+# Public website
+
+No sign-in. These endpoints exist only while `KSIRA_PUBLIC_BOOKING_ENABLED=true`; otherwise they return `404`.
+
+### `GET /public/availability?startTime={ms}&endTime={ms}&languages=hi,en`
+
+Lists the hours a client who speaks any of `languages` can book.
+
+- Bookable means at least 2 hours from now and within the booking window.
+- An aapta who speaks one of the languages must still be free at that hour.
+
+`200`
+
+```json
+{ "hours": [ { "startTime": 1792643400000, "endTime": 1792647000000 } ] }
+```
+
+### `POST /public/bookings`
+
+```json
+{
+  "name": "Tom H",
+  "email": "tom.h@example.com",
+  "startTime": 1792643400000,
+  "languages": ["hi", "en"],
+  "notes": "Just wants someone to listen.",
+  "consent": true
+}
+```
+
+- `name` is 2–80 characters.
+- `languages` needs at least one code.
+- `notes` is optional, up to 500 characters.
+- `consent` must be `true`.
+
+`201`
+
+```json
+{ "bookingId": "c3d4e5f6-…", "startTime": 1792643400000, "endTime": 1792647000000 }
+```
+
+The booking arrives with no aapta yet, on the admin Today page.
+
+Errors:
+- `TIME_NOT_AVAILABLE` (409): someone just took that hour.
+- `INVALID_SLOT_TIME` (422): not a session hour, less than 2 hours away, or too far ahead.
+- `RATE_LIMITED` (429): more than 5 bookings from one address in an hour.
+- `VALIDATION_FAILED` (400).
+
+---
+
 # Admin console
 
 Admins sign in at `POST /auth/login` (see **Auth**).
@@ -278,7 +329,7 @@ Returns every booking that starts that day, in start order. Cancelled bookings a
 
 ### `GET /admin/bookings/{bookingId}/aapta-options`
 
-Lists the current aapta first (if there is one), then the aaptas who opened that hour.
+Lists the current aapta first (if there is one), then the aaptas who opened that hour and speak at least one of the client's languages.
 
 `200`
 

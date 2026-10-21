@@ -14,6 +14,9 @@ public interface SlotSchedulePolicy {
     /** Whether a moment (stored UTC) is a session start, e.g. on the hour within opening hours. */
     boolean isSlotStart(LocalDateTime slotStartUtc);
 
+    /** End of the last day of the booking window: no hour after it can be opened or booked. */
+    LocalDateTime windowEnd();
+
     /** Whether the aapta may still change this hour: not yet started, and within the booking window. */
     boolean isOpenForChanges(LocalDateTime slotStartUtc, LocalDateTime nowUtc);
 }

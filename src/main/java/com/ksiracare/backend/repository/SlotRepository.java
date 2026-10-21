@@ -2,7 +2,9 @@ package com.ksiracare.backend.repository;
 
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.enums.SlotStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,6 +37,25 @@ public interface SlotRepository extends JpaRepository<Slot, UUID> {
             ORDER BY a.firstName ASC, a.lastName ASC
             """)
     List<Slot> findAtTimeWithStatus(@Param("slotTime") LocalDateTime slotTime, @Param("status") SlotStatus status);
+
+    /** Open hours of active aaptas starting in [from, to), with each aapta's languages loaded. */
+    @Query("""
+            SELECT DISTINCT s FROM Slot s JOIN FETCH s.aapta a LEFT JOIN FETCH a.languages
+            WHERE s.slotTime >= :from AND s.slotTime < :to
+              AND s.status = com.ksiracare.backend.enums.SlotStatus.AAPTA_AVAILABLE AND a.active = TRUE
+            """)
+    List<Slot> findOpenWithLanguagesStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /**
+     * Locks every open hour starting at {@code slotTime} until the transaction ends, so two
+     * clients can't both take the last aapta free at that time.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT s FROM Slot s
+            WHERE s.slotTime = :slotTime AND s.status = com.ksiracare.backend.enums.SlotStatus.AAPTA_AVAILABLE
+            """)
+    List<Slot> lockOpenAt(@Param("slotTime") LocalDateTime slotTime);
 
     @Query("SELECT s FROM Slot s WHERE s.aapta.id = :aaptaId AND s.slotTime = :slotTime")
     Optional<Slot> findForAaptaAt(@Param("aaptaId") UUID aaptaId, @Param("slotTime") LocalDateTime slotTime);

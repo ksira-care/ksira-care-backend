@@ -26,6 +26,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Stateless, cookie-based security. Everyone signs in at {@code /auth/login}; the role in the
  * session token decides what it opens:
  * <ul>
+ *   <li>{@code /public/**} — booking from the website, no sign-in;</li>
  *   <li>{@code /admin/**} — the admin console, admins only;</li>
  *   <li>{@code /auth/session}, {@code /auth/password}, {@code /languages} — any signed-in account;</li>
  *   <li>everything else — the aapta portal, aaptas only.</li>
@@ -47,6 +48,8 @@ public class SecurityConfig {
         return http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/logout").permitAll()
+                        // The website's booking form; clients have no accounts.
+                        .requestMatchers("/public/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         // Only reachable when springdoc is enabled (development).

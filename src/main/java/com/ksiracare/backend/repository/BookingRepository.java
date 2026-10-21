@@ -34,6 +34,24 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("excludedStatuses") Collection<BookingStatus> excludedStatuses
     );
 
+    /** Bookings still waiting for an aapta, starting in [from, to), with the client's languages loaded. */
+    @Query("""
+            SELECT DISTINCT b FROM Booking b
+            LEFT JOIN FETCH b.customerPreferredLanguages
+            WHERE b.aapta IS NULL AND b.status = com.ksiracare.backend.enums.BookingStatus.PENDING
+              AND b.startTime >= :from AND b.startTime < :to
+            """)
+    List<Booking> findUnallocatedStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** Bookings still waiting for an aapta that start exactly at {@code start}, with the client's languages loaded. */
+    @Query("""
+            SELECT DISTINCT b FROM Booking b
+            LEFT JOIN FETCH b.customerPreferredLanguages
+            WHERE b.aapta IS NULL AND b.status = com.ksiracare.backend.enums.BookingStatus.PENDING
+              AND b.startTime = :start
+            """)
+    List<Booking> findUnallocatedStartingAt(@Param("start") LocalDateTime start);
+
     /** Only finds the booking if it belongs to this aapta. */
     @Query("""
             SELECT b FROM Booking b

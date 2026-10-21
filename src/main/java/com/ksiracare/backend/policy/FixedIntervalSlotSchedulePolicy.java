@@ -60,6 +60,11 @@ public class FixedIntervalSlotSchedulePolicy implements SlotSchedulePolicy {
     }
 
     @Override
+    public LocalDateTime windowEnd() {
+        return calendar.dayOf(calendar.today().plusDays(windowDays)).end();
+    }
+
+    @Override
     public boolean isOpenForChanges(LocalDateTime slotStartUtc, LocalDateTime nowUtc) {
         boolean notStarted = slotStartUtc.isAfter(nowUtc);
         boolean withinWindow = !calendar.dateOf(slotStartUtc).isAfter(calendar.today().plusDays(windowDays));
