@@ -155,7 +155,7 @@ Request bodies and sample responses for every endpoint: [docs/API.md](docs/API.m
 | `GET`  | `/bookings?startTime&endTime` | `{bookings: [...]}`, cancelled ones excluded |
 | `PATCH`| `/bookings/{id}` | `{bookingStatus}`: `COMPLETED` / `CLIENT_NO_SHOW` once started and on the session's own day (IST); `PENDING` undoes a mark the same day |
 
-Public website (no sign-in; only while `KSIRA_PUBLIC_BOOKING_ENABLED=true`, otherwise 404):
+Public website (no sign-in; `KSIRA_PUBLIC_BOOKING_ENABLED=false` switches it off, then 404):
 
 | Method | Path | |
 |--------|------|---|

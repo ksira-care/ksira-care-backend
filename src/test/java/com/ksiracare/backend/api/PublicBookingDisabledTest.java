@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** With public booking switched off (production until the site opens), the endpoints don't exist. */
+/** With public booking switched off (the emergency switch), the endpoints don't exist. */
 @SpringBootTest(properties = "ksira.public-booking.enabled=false")
 class PublicBookingDisabledTest extends ApiTestSupport {
 

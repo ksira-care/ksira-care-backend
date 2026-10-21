@@ -216,7 +216,7 @@ Sessions still unmarked when their day ends (IST) automatically become `AAPTA_NO
 
 # Public website
 
-No sign-in. These endpoints exist only while `KSIRA_PUBLIC_BOOKING_ENABLED=true`; otherwise they return `404`.
+No sign-in. On by default; setting `KSIRA_PUBLIC_BOOKING_ENABLED=false` on the server switches them off, and they then return `404`.
 
 ### `GET /public/availability?startTime={ms}&endTime={ms}&languages=hi,en`
 
