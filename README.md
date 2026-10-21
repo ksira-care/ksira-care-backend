@@ -136,6 +136,8 @@ Deactivate the same way: `UPDATE admins SET is_active = false WHERE email = '…
 
 ## API
 
+Request bodies and sample responses for every endpoint: [docs/API.md](docs/API.md).
+
 | Method | Path | |
 |--------|------|---|
 | `POST` | `/auth/login` | `{email, password}` → `{aaptaId, email}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
