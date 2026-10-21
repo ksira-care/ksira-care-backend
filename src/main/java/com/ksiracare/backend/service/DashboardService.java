@@ -16,18 +16,21 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DashboardService {
 
+    /** The dashboard's "recent" window, matching what the aapta portal lists. */
+    static final int RECENT_DAYS = 30;
+
     private final BookingRepository bookingRepository;
     private final PortalCalendar calendar;
 
     @Transactional(readOnly = true)
     public DashboardSummaryDto getSummary(UUID aaptaId) {
-        UtcRange thisMonth = calendar.monthOf(calendar.today());
-        long completedThisMonth = bookingRepository.countWithStatusBetween(
-                aaptaId, BookingStatus.COMPLETED, thisMonth.start(), thisMonth.end());
-        long completedAllTime = bookingRepository.countWithStatus(aaptaId, BookingStatus.COMPLETED);
-        LocalDate activeSince = bookingRepository.findEarliestStartWithStatus(aaptaId, BookingStatus.COMPLETED)
-                .map(calendar::dateOf)
-                .orElse(null);
-        return new DashboardSummaryDto(completedThisMonth, completedAllTime, activeSince);
+        LocalDate today = calendar.today();
+        UtcRange thisMonth = calendar.monthOf(today);
+        UtcRange recent = new UtcRange(calendar.dayOf(today.minusDays(RECENT_DAYS)).start(), calendar.dayOf(today).end());
+        return new DashboardSummaryDto(completed(aaptaId, thisMonth), completed(aaptaId, recent));
+    }
+
+    private long completed(UUID aaptaId, UtcRange range) {
+        return bookingRepository.countWithStatusBetween(aaptaId, BookingStatus.COMPLETED, range.start(), range.end());
     }
 }

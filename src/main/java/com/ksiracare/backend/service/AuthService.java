@@ -2,6 +2,7 @@ package com.ksiracare.backend.service;
 
 import com.ksiracare.backend.dto.request.ChangePasswordRequestDto;
 import com.ksiracare.backend.dto.request.LoginRequestDto;
+import com.ksiracare.backend.dto.response.SessionDto;
 import com.ksiracare.backend.entity.Account;
 import com.ksiracare.backend.exception.AccountDisabledException;
 import com.ksiracare.backend.exception.CurrentPasswordIncorrectException;
@@ -50,7 +51,17 @@ public class AuthService {
         this.dummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
-    public record LoginResult(SessionPrincipal principal, String sessionToken) {
+    /**
+     * @param session      who signed in, and as what
+     * @param sessionToken the token for the session cookie
+     */
+    public record LoginResult(SessionDto session, String sessionToken) {
+    }
+
+    /** Who {@code me} is, for the app to greet them and open their portal. */
+    @Transactional(readOnly = true)
+    public SessionDto describe(SessionPrincipal me) {
+        return SessionDto.of(me.role(), findAccount(me));
     }
 
     /**
@@ -61,8 +72,7 @@ public class AuthService {
      */
     @Transactional
     public String changePassword(SessionPrincipal me, ChangePasswordRequestDto request) {
-        Account account = accounts.findById(me.role(), me.accountId())
-                .orElseThrow(() -> new ResourceNotFoundException("Account not found."));
+        Account account = findAccount(me);
         if (!passwordEncoder.matches(request.currentPassword(), account.getPassword())) {
             throw new CurrentPasswordIncorrectException("Your current password is incorrect.");
         }
@@ -89,7 +99,12 @@ public class AuthService {
 
         attemptLimiter.recordSuccess(email);
         SessionPrincipal principal = SessionPrincipal.of(match.role(), account.getId(), account.getEmail());
-        return new LoginResult(principal, jwtService.issue(principal, account.getSessionVersion()));
+        return new LoginResult(SessionDto.of(match.role(), account), jwtService.issue(principal, account.getSessionVersion()));
+    }
+
+    private Account findAccount(SessionPrincipal me) {
+        return accounts.findById(me.role(), me.accountId())
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found."));
     }
 
     /** The account whose password this is, or null. An unknown email still costs one hash check. */

@@ -141,13 +141,14 @@ Request bodies and sample responses for every endpoint: [docs/API.md](docs/API.m
 
 | Method | Path | |
 |--------|------|---|
-| `POST` | `/auth/login` | aaptas and admins: `{email, password}` → `{accountId, email, role}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
+| `POST` | `/auth/login` | aaptas and admins: `{email, password}` → `{accountId, email, role, firstName, middleName, lastName}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/auth/logout` | 204, clears the cookie |
-| `GET`  | `/auth/session` | `{accountId, email, role}` of whoever is signed in; 401 if nobody |
+| `GET`  | `/auth/session` | `{accountId, email, role, firstName, middleName, lastName}` of whoever is signed in; 401 if nobody |
+| `GET`  | `/languages` | either role: `{languages: [{code, name}]}` — for the language pickers |
 | `POST` | `/auth/password` | either role: `{currentPassword, newPassword}` → 204 + a fresh session cookie; signs out every other device; `422 CURRENT_PASSWORD_INCORRECT` if the current one is wrong |
 | `GET`  | `/aaptas/me` | profile; also the "am I signed in?" check (401 if not) |
 | `PATCH`| `/aaptas/me` | edit own profile — name, phone, date of birth, address, languages (same body as the admin edit) |
-| `GET`  | `/aaptas/me/dashboard-summary` | `{completedThisMonth, completedAllTime, activeSince}` |
+| `GET`  | `/aaptas/me/dashboard-summary` | `{completedThisMonth, completedLast30Days}` |
 | `GET`  | `/aaptas/me/slots?startTime&endTime` | `{slots: [{id, time, status}]}` — every session hour in the range |
 | `POST` | `/aaptas/me/slots?startTime&endTime` | body `[{id, time, status}]` — opens/closes only the hours sent; answers like `GET` |
 | `GET`  | `/bookings?startTime&endTime` | `{bookings: [...]}`, cancelled ones excluded |
@@ -168,7 +169,6 @@ Admin console:
 | `PATCH`| `/admin/aaptas/{id}` | edit an aapta — email (their login) and languages (same body as `PATCH /aaptas/me`) |
 | `POST` | `/admin/aaptas` | `{firstName, middleName?, lastName, email, languages: ["en", …], password}` → 201; `409 EMAIL_TAKEN` |
 | `DELETE`| `/admin/aaptas/{id}` | removes the aapta → `{aaptaId, unallocatedBookings}` |
-| `GET`  | `/admin/languages` | `{languages: [{code, name}]}` — the languages aaptas can be given |
 | `GET`  | `/admin/history?month=YYYY-MM` | one month (this month by default; only this month and last): `{month, months, summary, sessions, olderMonthsNotExported}` |
 | `POST` | `/admin/history/export` | `ksira-sessions-YYYY-MM.csv` — always **last** month; then deletes older months that were already exported (`X-Deleted-Months`, `X-Not-Exported-Months` headers) |
 | `GET`  | `/admin/availability?date=YYYY-MM-DD` | view-only grid for any date: `{date, hours: [{time, openAaptas}], aaptas: [{aaptaId, firstName, lastName, slots: [{time, status, booking}]}]}` — each aapta's `slots` line up with `hours`; `booking` (`{bookingId, client}`) is set on BOOKED cells |

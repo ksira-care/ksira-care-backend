@@ -32,7 +32,7 @@ public class AuthController {
         AuthService.LoginResult result = authService.login(request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, sessionCookies.issue(result.sessionToken()).toString())
-                .body(SessionDto.of(result.principal()));
+                .body(result.session());
     }
 
     /** Ends the session by clearing the cookie. Always succeeds, even if already signed out. */
@@ -46,7 +46,7 @@ public class AuthController {
     /** Who is signed in, and as what; 401 if nobody. Lets the sign-in page send them on. */
     @GetMapping("/session")
     public SessionDto session(@AuthenticationPrincipal SessionPrincipal me) {
-        return SessionDto.of(me);
+        return authService.describe(me);
     }
 
     /**

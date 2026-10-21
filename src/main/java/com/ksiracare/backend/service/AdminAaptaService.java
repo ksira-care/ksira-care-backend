@@ -3,7 +3,6 @@ package com.ksiracare.backend.service;
 import com.ksiracare.backend.dto.request.CreateAaptaRequestDto;
 import com.ksiracare.backend.dto.response.AaptaRemovedDto;
 import com.ksiracare.backend.dto.response.AaptaProfileDto;
-import com.ksiracare.backend.dto.response.LanguageDto;
 import com.ksiracare.backend.entity.Aapta;
 import com.ksiracare.backend.entity.Account;
 import com.ksiracare.backend.entity.Booking;
@@ -57,14 +56,6 @@ public class AdminAaptaService {
     @Transactional(readOnly = true)
     public List<AaptaProfileDto> getRoster() {
         return aaptaRepository.findActiveWithLanguages().stream().map(mapper::toProfile).toList();
-    }
-
-    /** The languages aaptas can be given, by name. */
-    @Transactional(readOnly = true)
-    public List<LanguageDto> getLanguages() {
-        return languageRepository.findAllByOrderByNameAsc().stream()
-                .map(language -> new LanguageDto(language.getCode(), language.getName()))
-                .toList();
     }
 
     @Transactional

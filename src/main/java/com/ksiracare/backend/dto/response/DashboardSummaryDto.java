@@ -1,12 +1,11 @@
 package com.ksiracare.backend.dto.response;
 
-import java.time.LocalDate;
-
 /**
- * Headline numbers for the dashboard. "This month" is the current calendar month in the
- * portal time zone (IST).
+ * Headline numbers for the dashboard, both in the portal time zone (IST). Only recent numbers:
+ * older months are deleted once exported, so an all-time total would quietly shrink.
  *
- * @param activeSince date of the first completed session, or null if there isn't one yet
+ * @param completedThisMonth  sessions completed in the current calendar month
+ * @param completedLast30Days sessions completed from 30 days ago up to today, inclusive
  */
-public record DashboardSummaryDto(long completedThisMonth, long completedAllTime, LocalDate activeSince) {
+public record DashboardSummaryDto(long completedThisMonth, long completedLast30Days) {
 }

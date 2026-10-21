@@ -54,15 +54,6 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("to") LocalDateTime to
     );
 
-    @Query("SELECT COUNT(b) FROM Booking b WHERE b.aapta.id = :aaptaId AND b.status = :status")
-    long countWithStatus(@Param("aaptaId") UUID aaptaId, @Param("status") BookingStatus status);
-
-    @Query("SELECT MIN(b.startTime) FROM Booking b WHERE b.aapta.id = :aaptaId AND b.status = :status")
-    Optional<LocalDateTime> findEarliestStartWithStatus(
-            @Param("aaptaId") UUID aaptaId,
-            @Param("status") BookingStatus status
-    );
-
     /** Every booking starting in [from, to), whoever holds it and whatever its status, with its aapta loaded. */
     @Query("""
             SELECT b FROM Booking b

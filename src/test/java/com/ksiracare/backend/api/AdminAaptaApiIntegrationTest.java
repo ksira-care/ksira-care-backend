@@ -66,11 +66,14 @@ class AdminAaptaApiIntegrationTest extends ApiTestSupport {
     }
 
     @Test
-    void theLanguagePickerListsEverySupportedLanguage() throws Exception {
-        mvc.perform(get("/api/admin/languages").contextPath("/api").cookie(admin))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.languages[*].code", containsInAnyOrder("en", "hi", "mr", "kn")))
-                .andExpect(jsonPath("$.languages[?(@.code == 'hi')].name").value("Hindi"));
+    void bothPortalsGetTheLanguagePickersList() throws Exception {
+        for (Cookie anyone : new Cookie[]{admin, session()}) {
+            mvc.perform(get("/api/languages").contextPath("/api").cookie(anyone))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.languages[*].code", containsInAnyOrder("en", "hi", "mr", "kn")))
+                    .andExpect(jsonPath("$.languages[?(@.code == 'hi')].name").value("Hindi"));
+        }
+        mvc.perform(get("/api/languages").contextPath("/api")).andExpect(status().isUnauthorized());
     }
 
     // ── add ──────────────────────────────────────────────────

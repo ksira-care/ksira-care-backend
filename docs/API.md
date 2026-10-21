@@ -5,7 +5,7 @@ Base URL: `/api` (e.g. `http://localhost:8080/api`).
 ## Conventions
 
 - **Sessions.** Aaptas and admins sign in at the same endpoint, and the response's `role` says which they are. Sign-in sets one httpOnly cookie, `ksira_session` (path `/api`), so send requests with credentials.
-  - `/admin/**` needs an admin session, `/auth/session` and `/auth/password` accept either role, and the rest of the API needs an aapta session.
+  - `/admin/**` needs an admin session, `/auth/session`, `/auth/password` and `/languages` accept either role, and the rest of the API needs an aapta session.
   - With no session the response is `401 UNAUTHENTICATED`; with the wrong role it is `403 FORBIDDEN`.
 - **Times** are epoch milliseconds (UTC). **Dates** are `YYYY-MM-DD` and **months** are `YYYY-MM`, both in the portal time zone (IST).
 - **Languages** are ISO 639-1 codes: `en`, `hi`, `mr`, `kn`.
@@ -31,7 +31,9 @@ Base URL: `/api` (e.g. `http://localhost:8080/api`).
 
 ---
 
-# Auth (aaptas and admins)
+# Shared (aaptas and admins)
+
+## Auth
 
 ### `POST /auth/login`
 
@@ -42,7 +44,14 @@ Base URL: `/api` (e.g. `http://localhost:8080/api`).
 `200` + `Set-Cookie: ksira_session=…`
 
 ```json
-{ "accountId": "6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b", "email": "aapta@ksiracare.com", "role": "AAPTA" }
+{
+  "accountId": "6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b",
+  "email": "aapta@ksiracare.com",
+  "role": "AAPTA",
+  "firstName": "Aanya",
+  "middleName": null,
+  "lastName": "Mehta"
+}
 ```
 
 `role` is `AAPTA` or `ADMIN`.
@@ -72,6 +81,18 @@ Works for either role.
 `204` + a fresh `Set-Cookie`. Every other session is signed out.
 
 Errors: `CURRENT_PASSWORD_INCORRECT`, `VALIDATION_FAILED`.
+
+## Languages
+
+### `GET /languages`
+
+Works for either role. Feeds the language pickers.
+
+`200`
+
+```json
+{ "languages": [ { "code": "en", "name": "English" }, { "code": "hi", "name": "Hindi" }, { "code": "mr", "name": "Marathi" }, { "code": "kn", "name": "Kannada" } ] }
+```
 
 ---
 
@@ -116,7 +137,7 @@ The aapta may send `firstName`, `middleName`, `lastName`, `phone` (E.164), `date
 `200`
 
 ```json
-{ "completedThisMonth": 12, "completedAllTime": 48, "activeSince": "2026-09-02" }
+{ "completedThisMonth": 12, "completedLast30Days": 17 }
 ```
 
 ## Slots (opening hours)
@@ -365,14 +386,6 @@ Removing an aapta:
 
 ```json
 { "aaptaId": "6f1c…", "unallocatedBookings": 2 }
-```
-
-### `GET /admin/languages`
-
-`200`
-
-```json
-{ "languages": [ { "code": "en", "name": "English" }, { "code": "hi", "name": "Hindi" }, { "code": "mr", "name": "Marathi" }, { "code": "kn", "name": "Kannada" } ] }
 ```
 
 ## History

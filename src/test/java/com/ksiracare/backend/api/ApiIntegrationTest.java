@@ -98,7 +98,7 @@ class ApiIntegrationTest extends ApiTestSupport {
     void theDashboardSummaryIsAvailable() throws Exception {
         mvc.perform(get("/api/aaptas/me/dashboard-summary").contextPath("/api").cookie(session()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.completedAllTime").isNumber())
+                .andExpect(jsonPath("$.completedLast30Days").isNumber())
                 .andExpect(jsonPath("$.completedThisMonth").isNumber());
     }
 
@@ -183,7 +183,8 @@ class ApiIntegrationTest extends ApiTestSupport {
         mvc.perform(get("/api/auth/session").contextPath("/api").cookie(session()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("aapta@ksiracare.com"))
-                .andExpect(jsonPath("$.role").value("AAPTA"));
+                .andExpect(jsonPath("$.role").value("AAPTA"))
+                .andExpect(jsonPath("$.firstName").value("Aanya"));
         mvc.perform(get("/api/auth/session").contextPath("/api").cookie(adminSession()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("ADMIN"));

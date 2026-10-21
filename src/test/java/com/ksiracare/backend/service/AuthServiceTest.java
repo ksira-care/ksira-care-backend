@@ -6,7 +6,6 @@ import com.ksiracare.backend.entity.Admin;
 import com.ksiracare.backend.exception.AccountDisabledException;
 import com.ksiracare.backend.exception.InvalidCredentialsException;
 import com.ksiracare.backend.exception.TooManyLoginAttemptsException;
-import com.ksiracare.backend.security.AaptaPrincipal;
 import com.ksiracare.backend.security.AccountDirectory;
 import com.ksiracare.backend.security.AccountDirectory.RoleAccount;
 import com.ksiracare.backend.security.AdminPrincipal;
@@ -25,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -59,8 +59,9 @@ class AuthServiceTest {
     void correctDetailsStartASession() {
         AuthService.LoginResult result = authService.login(request("aapta@ksiracare.com", "password123"));
 
-        assertThat(result.principal()).isInstanceOf(AaptaPrincipal.class);
-        assertThat(result.principal().email()).isEqualTo("aapta@ksiracare.com");
+        assertThat(result.session().role()).isEqualTo(Role.AAPTA);
+        assertThat(result.session().email()).isEqualTo("aapta@ksiracare.com");
+        assertThat(result.session().firstName()).isEqualTo("Aanya");
         assertThat(result.sessionToken()).isEqualTo("signed-token");
         verify(limiter).recordSuccess("aapta@ksiracare.com");
     }
@@ -69,8 +70,8 @@ class AuthServiceTest {
     void adminsSignInAsAdmins() {
         AuthService.LoginResult result = authService.login(request("admin@ksiracare.com", "admin-password"));
 
-        assertThat(result.principal()).isInstanceOf(AdminPrincipal.class);
-        verify(jwtService).issue(result.principal(), 0);
+        assertThat(result.session().role()).isEqualTo(Role.ADMIN);
+        verify(jwtService).issue(any(AdminPrincipal.class), eq(0));
     }
 
     @Test
@@ -79,10 +80,10 @@ class AuthServiceTest {
         when(accounts.findByEmail("admin@ksiracare.com")).thenReturn(List.of(
                 new RoleAccount(Role.AAPTA, sameEmail), new RoleAccount(Role.ADMIN, meera)));
 
-        assertThat(authService.login(request("admin@ksiracare.com", "admin-password")).principal())
-                .isInstanceOf(AdminPrincipal.class);
-        assertThat(authService.login(request("admin@ksiracare.com", "aapta-password")).principal())
-                .isInstanceOf(AaptaPrincipal.class);
+        assertThat(authService.login(request("admin@ksiracare.com", "admin-password")).session().role())
+                .isEqualTo(Role.ADMIN);
+        assertThat(authService.login(request("admin@ksiracare.com", "aapta-password")).session().role())
+                .isEqualTo(Role.AAPTA);
     }
 
     @Test
