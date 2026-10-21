@@ -1,23 +1,20 @@
 package com.ksiracare.backend.dto.response;
 
-import com.ksiracare.backend.enums.Language;
-
-import java.util.Set;
 import java.util.UUID;
 
 /**
- * What the client entered when booking ("View form").
+ * What the client entered on the website's booking form ("View form"), field for field.
  *
+ * @param notes       what they'd like to talk about, if anything
+ * @param consent     whether they accepted the terms when booking
  * @param submittedAt epoch milliseconds (UTC)
  */
 public record BookingFormDto(
         UUID bookingId,
         String name,
         String email,
-        String phone,
-        String country,
-        Set<Language> preferredLanguages,
-        String reason,
+        String notes,
+        boolean consent,
         Long submittedAt
 ) {
 }

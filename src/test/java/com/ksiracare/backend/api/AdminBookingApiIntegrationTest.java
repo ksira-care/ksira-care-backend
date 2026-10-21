@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.ksiracare.backend.entity.Aapta;
 import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.entity.Slot;
+import com.ksiracare.backend.enums.BookingStatus;
 import com.ksiracare.backend.enums.SlotStatus;
 import com.ksiracare.backend.repository.AaptaRepository;
 import com.ksiracare.backend.repository.BookingRepository;
@@ -75,6 +76,20 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
                 .andExpect(row(unallocated, "editableFrom").value(EpochTime.toMillis(soon.minusHours(24))));
         dayOf(soon.plusHours(27))
                 .andExpect(row(later, "editable").value(false));
+    }
+
+    @Test
+    void cancelledBookingsAreListedButNeverEditable() throws Exception {
+        Booking cancelled = booking(soon, "Omar Farouk");
+        cancelled.setStatus(BookingStatus.CANCELLED);
+        bookingRepository.save(cancelled);
+
+        dayOf(soon)
+                .andExpect(row(cancelled, "bookingStatus").value("CANCELLED"))
+                .andExpect(row(cancelled, "editable").value(false));
+        save(cancelled.getId(), anika.getId(), false, version(cancelled.getId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BOOKING_NOT_EDITABLE"));
     }
 
     @Test
@@ -162,8 +177,10 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Farah Ali"))
                 .andExpect(jsonPath("$.email").value("farah-ali@example.com"))
-                .andExpect(jsonPath("$.reason").value("Wanted to talk things through."))
-                .andExpect(jsonPath("$.submittedAt").isNumber());
+                .andExpect(jsonPath("$.notes").value("Wanted to talk things through."))
+                .andExpect(jsonPath("$.consent").value(true))
+                .andExpect(jsonPath("$.submittedAt").isNumber())
+                .andExpect(jsonPath("$.timezone").doesNotExist());
     }
 
     @Test
@@ -197,6 +214,7 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
                 .customerName(clientName)
                 .customerEmail(clientName.toLowerCase().replace(' ', '-') + "@example.com")
                 .bookingReason("Wanted to talk things through.")
+                .consentGivenAt(calendar.nowUtc())
                 .startTime(start)
                 .endTime(start.plusHours(1))
                 .build());

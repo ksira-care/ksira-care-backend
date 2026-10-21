@@ -9,7 +9,6 @@ import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.entity.BookingEvent;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.enums.BookingEventType;
-import com.ksiracare.backend.enums.BookingStatus;
 import com.ksiracare.backend.enums.SlotStatus;
 import com.ksiracare.backend.exception.AaptaNotAvailableException;
 import com.ksiracare.backend.exception.ApiException;
@@ -36,18 +35,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 /**
  * The admin console's bookings: see a day, allocate or change the aapta, record the BCC email.
  * When changes are allowed is decided by {@link AdminBookingPolicy}; outcomes are the aapta's.
+ * Admins see every booking, cancelled ones included: the row's status tells them apart.
  */
 @Service
 @RequiredArgsConstructor
 public class AdminBookingService {
-
-    private static final Set<BookingStatus> HIDDEN_FROM_ADMINS = Set.of(BookingStatus.CANCELLED);
 
     private final BookingRepository bookingRepository;
     private final SlotRepository slotRepository;
@@ -56,11 +53,11 @@ public class AdminBookingService {
     private final AdminBookingMapper mapper;
     private final PortalCalendar calendar;
 
-    /** Every booking starting on {@code date} (portal time zone), in start order. */
+    /** Every booking starting on {@code date} (portal time zone), in start order, cancelled ones included. */
     @Transactional(readOnly = true)
     public List<AdminBookingDto> getDay(LocalDate date) {
         UtcRange day = calendar.dayOf(date);
-        List<Booking> bookings = bookingRepository.findStartingBetween(day.start(), day.end(), HIDDEN_FROM_ADMINS);
+        List<Booking> bookings = bookingRepository.findStartingBetween(day.start(), day.end());
         Map<UUID, Aapta> previous = previousAaptas(bookings.stream().map(Booking::getId).toList());
         LocalDateTime now = calendar.nowUtc();
         return bookings.stream().map(booking -> toRow(booking, previous.get(booking.getId()), now)).toList();

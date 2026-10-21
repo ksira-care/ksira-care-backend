@@ -151,8 +151,8 @@ Admin console:
 | `POST` | `/admin/auth/login` | `{email, password}` → `{adminId, email}` + httpOnly `ksira_admin_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/admin/auth/logout` | 204, clears the admin cookie |
 | `GET`  | `/admin/me` | `{adminId, email, firstName, middleName, lastName}`; also the "am I signed in?" check |
-| `GET`  | `/admin/bookings?date=YYYY-MM-DD` | `{date, bookings: [...]}` — every booking that day (IST), with `editable`/`editableFrom` worked out by the server |
-| `GET`  | `/admin/bookings/{id}/form` | what the client entered when booking ("View form") |
+| `GET`  | `/admin/bookings?date=YYYY-MM-DD` | `{date, bookings: [...]}` — every booking that day (IST), cancelled ones included, with `editable`/`editableFrom` worked out by the server |
+| `GET`  | `/admin/bookings/{id}/form` | the website booking form as the client filled it: `{name, email, notes, consent, submittedAt}` |
 | `GET`  | `/admin/bookings/{id}/aapta-options` | `{aaptas: [...]}` — the current aapta, then active aaptas who opened that hour |
 | `PATCH`| `/admin/bookings/{id}` | `{aaptaId, bccEmailSent, version}` — "Add" / "Update"; answers with the updated row |
 
@@ -163,6 +163,7 @@ Booking rules in the admin console:
 - **Aapta:** only someone who opened that hour (`409 AAPTA_NOT_AVAILABLE` otherwise). Their hour
   becomes booked; on a change, the previous aapta's hour opens again.
 - **BCC email:** set by the admin; changing the aapta leaves it as it was.
+- **Cancelled bookings** are listed with `bookingStatus: CANCELLED` and are never editable.
 - **Outcome:** read-only here — it is the aapta's mark from their portal, and a reassignment
   clears it back to pending.
 - **History:** every change is stored in `booking_events` (who, when, from → to); the day view

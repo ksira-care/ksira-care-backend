@@ -73,6 +73,10 @@ public class Booking {
     @Column(name = "booking_reason", length = 1000)
     private String bookingReason;
 
+    /** When the client accepted the terms on the booking form. */
+    @Column(name = "consent_given_at")
+    private LocalDateTime consentGivenAt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     @Builder.Default

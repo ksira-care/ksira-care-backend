@@ -20,10 +20,8 @@ public interface AdminBookingMapper {
     @Mapping(source = "id", target = "bookingId")
     @Mapping(source = "customerName", target = "name")
     @Mapping(source = "customerEmail", target = "email")
-    @Mapping(source = "customerPhone", target = "phone")
-    @Mapping(source = "customerCountry", target = "country")
-    @Mapping(source = "customerPreferredLanguages", target = "preferredLanguages")
-    @Mapping(source = "bookingReason", target = "reason")
+    @Mapping(source = "bookingReason", target = "notes")
+    @Mapping(target = "consent", expression = "java(booking.getConsentGivenAt() != null)")
     @Mapping(source = "createdAt", target = "submittedAt")
     BookingFormDto toForm(Booking booking);
 

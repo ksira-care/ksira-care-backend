@@ -159,15 +159,18 @@ public class DevDataSeeder implements ApplicationRunner {
         for (int hour : new int[]{12, 18}) {
             request(today.plusDays(1), hour, CLIENTS[clientIndex++ % CLIENTS.length]);
         }
+        // Admins see cancelled bookings too.
+        request(today, 22, CLIENTS[clientIndex % CLIENTS.length]).setStatus(BookingStatus.CANCELLED);
     }
 
     /** A booking as a client submits it: no aapta until an admin allocates one. */
-    private void request(LocalDate day, int hour, DemoClient client) {
+    private Booking request(LocalDate day, int hour, DemoClient client) {
         LocalDateTime start = calendar.toUtc(day, LocalTime.of(hour, 0));
-        bookingRepository.save(Booking.builder()
+        return bookingRepository.save(Booking.builder()
                 .customerName(client.name())
                 .customerEmail(client.email())
                 .bookingReason(client.reason())
+                .consentGivenAt(start.minusDays(2))
                 .customerPreferredLanguages(languages(client.languages()))
                 .startTime(start)
                 .endTime(start.plus(portal.sessionLength()))
@@ -185,6 +188,7 @@ public class DevDataSeeder implements ApplicationRunner {
                 .customerName(client.name())
                 .customerEmail(client.email())
                 .bookingReason(client.reason())
+                .consentGivenAt(start.minusDays(4))
                 .customerPreferredLanguages(languages(client.languages()))
                 .startTime(start)
                 .endTime(end)
