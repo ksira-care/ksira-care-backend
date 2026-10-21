@@ -61,4 +61,28 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("aaptaId") UUID aaptaId,
             @Param("status") BookingStatus status
     );
+
+    /** Every booking starting in [from, to), whoever holds it, with its aapta and client languages loaded. */
+    @Query("""
+            SELECT DISTINCT b FROM Booking b
+            LEFT JOIN FETCH b.aapta
+            LEFT JOIN FETCH b.customerPreferredLanguages
+            WHERE b.startTime >= :from AND b.startTime < :to
+              AND b.status NOT IN :excludedStatuses
+            ORDER BY b.startTime ASC
+            """)
+    List<Booking> findStartingBetween(
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("excludedStatuses") Collection<BookingStatus> excludedStatuses
+    );
+
+    @Query("""
+            SELECT b FROM Booking b
+            LEFT JOIN FETCH b.aapta
+            LEFT JOIN FETCH b.slot
+            LEFT JOIN FETCH b.customerPreferredLanguages
+            WHERE b.id = :bookingId
+            """)
+    Optional<Booking> findWithDetailsById(@Param("bookingId") UUID bookingId);
 }

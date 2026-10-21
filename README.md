@@ -21,7 +21,8 @@ Demo accounts (dev profile only):
 |--------------------------|---------------|--------------------------------------|
 | `aapta@ksiracare.com`    | `password123` | active, with bookings and open hours |
 | `disabled@ksiracare.com` | `password123` | deactivated                          |
-| `admin@ksiracare.com`    | `password123` | admin console                        |
+| `ravi@ksiracare.com`     | `password123` | active, open every hour today and tomorrow |
+| `admin@ksiracare.com`    | `password123` | admin console, with bookings waiting for an aapta |
 
 To use the UI against this backend, run `npm run start:api` in the UI repo — it proxies
 `/api` to `localhost:8080`. API docs (dev only): http://localhost:8080/api/swagger-ui.html
@@ -150,6 +151,24 @@ Admin console:
 | `POST` | `/admin/auth/login` | `{email, password}` → `{adminId, email}` + httpOnly `ksira_admin_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/admin/auth/logout` | 204, clears the admin cookie |
 | `GET`  | `/admin/me` | `{adminId, email, firstName, middleName, lastName}`; also the "am I signed in?" check |
+| `GET`  | `/admin/bookings?date=YYYY-MM-DD` | `{date, bookings: [...]}` — every booking that day (IST), with `editable`/`editableFrom` worked out by the server |
+| `GET`  | `/admin/bookings/{id}/form` | what the client entered when booking ("View form") |
+| `GET`  | `/admin/bookings/{id}/aapta-options` | `{aaptas: [...]}` — the current aapta, then active aaptas who opened that hour |
+| `PATCH`| `/admin/bookings/{id}` | `{aaptaId, bccEmailSent, version}` — "Add" / "Update"; answers with the updated row |
+
+Booking rules in the admin console:
+
+- **When:** an admin may change a booking from **24 h before it starts until it starts**
+  (`ksira.admin.booking-action-window`); otherwise it is view-only (`409 BOOKING_NOT_EDITABLE`).
+- **Aapta:** only someone who opened that hour (`409 AAPTA_NOT_AVAILABLE` otherwise). Their hour
+  becomes booked; on a change, the previous aapta's hour opens again.
+- **BCC email:** set by the admin; changing the aapta leaves it as it was.
+- **Outcome:** read-only here — it is the aapta's mark from their portal, and a reassignment
+  clears it back to pending.
+- **History:** every change is stored in `booking_events` (who, when, from → to); the day view
+  shows the latest "was …" aapta.
+- **Concurrent edits:** send back the row's `version`; if another admin saved first, the answer
+  is `409 CONCURRENT_UPDATE`.
 
 Error codes the portal relies on: `UNAUTHENTICATED`, `INVALID_CREDENTIALS`,
 `ACCOUNT_DISABLED`, `RATE_LIMITED`, `SLOT_BOOKED`, `INVALID_SLOT_TIME`,

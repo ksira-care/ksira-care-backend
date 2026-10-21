@@ -32,8 +32,9 @@ public class Booking {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "aapta_id", nullable = false)
+    /** Who holds the session; null until an admin allocates one. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "aapta_id")
     private Aapta aapta;
 
     @OneToOne(fetch = FetchType.LAZY)
@@ -94,6 +95,11 @@ public class Booking {
     @Column(name = "reschedule_reason")
     private String rescheduleReason;
 
+    /** Set by an admin once the client and aapta have been emailed the Meet link (BCC). */
+    @Column(name = "bcc_email_sent", nullable = false)
+    @Builder.Default
+    private boolean bccEmailSent = false;
+
     /** When the aapta marked the session complete / client no-show; null while pending. */
     @Column(name = "marked_at")
     private LocalDateTime markedAt;
@@ -108,6 +114,24 @@ public class Booking {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    /**
+     * Gives the session to the aapta who owns {@code slot}: that hour becomes booked, the previous
+     * aapta's hour (if any) opens again, and any outcome is cleared — the new aapta marks it.
+     * The BCC flag is left alone: it records whether the client was emailed. Callers check that
+     * the slot is open and the change is allowed.
+     */
+    public void allocateTo(Slot slot, LocalDateTime now) {
+        if (this.slot != null) {
+            this.slot.release();
+        }
+        slot.book();
+        this.slot = slot;
+        this.aapta = slot.getAapta();
+        this.assignedAt = now;
+        this.status = BookingStatus.PENDING;
+        this.markedAt = null;
+    }
 
     @Override
     public boolean equals(Object o) {

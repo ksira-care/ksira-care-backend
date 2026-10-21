@@ -59,6 +59,16 @@ public class Slot {
         this.status = status;
     }
 
+    /** A booking now holds this hour. */
+    public void book() {
+        this.status = SlotStatus.BOOKED;
+    }
+
+    /** The booking moved elsewhere; the aapta's hour is open again. */
+    public void release() {
+        this.status = SlotStatus.AAPTA_AVAILABLE;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -36,7 +36,8 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>aapta@ksiracare.com / password123 — active, with bookings and open hours</li>
  *   <li>disabled@ksiracare.com / password123 — deactivated</li>
- *   <li>admin@ksiracare.com / password123 — admin console</li>
+ *   <li>ravi@ksiracare.com / password123 — active, open every hour today and tomorrow</li>
+ *   <li>admin@ksiracare.com / password123 — admin console, with bookings waiting for an aapta</li>
  * </ul>
  */
 @Slf4j
@@ -57,6 +58,9 @@ public class DevDataSeeder implements ApplicationRunner {
     private final PortalProperties portal;
 
     private record DemoClient(String name, String reason, Language... languages) {
+        String email() {
+            return name.toLowerCase().replace(' ', '.') + "@example.com";
+        }
     }
 
     private static final DemoClient[] CLIENTS = {
@@ -79,9 +83,12 @@ public class DevDataSeeder implements ApplicationRunner {
         aanya.setAddress("Flat 402, Green Meadows, Pune 411014");
         aanya.setLanguages(languages(Language.ENGLISH, Language.HINDI, Language.MARATHI));
         createAapta("Dev", "Mehta", "disabled@ksiracare.com", false);
+        Aapta ravi = createAapta("Ravi", "Shah", "ravi@ksiracare.com", true);
+        ravi.setLanguages(languages(Language.ENGLISH, Language.KANNADA));
         adminRepository.save(new Admin("Meera", "Iyer", "admin@ksiracare.com", passwordEncoder.encode(DEMO_PASSWORD)));
 
         seedBookingsAndHours(aanya);
+        seedAdminQueue(ravi);
         log.info("Seeded dev data — sign in with aapta@ksiracare.com or admin@ksiracare.com / {}", DEMO_PASSWORD);
     }
 
@@ -133,6 +140,40 @@ public class DevDataSeeder implements ApplicationRunner {
         }
     }
 
+    /**
+     * What the admin console works on: client requests with no aapta yet, today and tomorrow,
+     * and a second aapta (Ravi) who has opened every hour of both days, so there is always
+     * someone to allocate.
+     */
+    private void seedAdminQueue(Aapta ravi) {
+        LocalDate today = calendar.today();
+        for (LocalDate day : new LocalDate[]{today, today.plusDays(1)}) {
+            for (int hour = portal.firstSlotHour(); hour <= portal.lastSlotHour(); hour++) {
+                slotRepository.save(new Slot(ravi, calendar.toUtc(day, LocalTime.of(hour, 0)), SlotStatus.AAPTA_AVAILABLE));
+            }
+        }
+        int clientIndex = 0;
+        for (int hour : new int[]{15, 18, 21}) {
+            request(today, hour, CLIENTS[clientIndex++ % CLIENTS.length]);
+        }
+        for (int hour : new int[]{12, 18}) {
+            request(today.plusDays(1), hour, CLIENTS[clientIndex++ % CLIENTS.length]);
+        }
+    }
+
+    /** A booking as a client submits it: no aapta until an admin allocates one. */
+    private void request(LocalDate day, int hour, DemoClient client) {
+        LocalDateTime start = calendar.toUtc(day, LocalTime.of(hour, 0));
+        bookingRepository.save(Booking.builder()
+                .customerName(client.name())
+                .customerEmail(client.email())
+                .bookingReason(client.reason())
+                .customerPreferredLanguages(languages(client.languages()))
+                .startTime(start)
+                .endTime(start.plus(portal.sessionLength()))
+                .build());
+    }
+
     private Booking book(Aapta aapta, LocalDate day, int hour, DemoClient client,
                          BookingStatus status, LocalDateTime now) {
         LocalDateTime start = calendar.toUtc(day, LocalTime.of(hour, 0));
@@ -142,10 +183,12 @@ public class DevDataSeeder implements ApplicationRunner {
                 .aapta(aapta)
                 .slot(slot)
                 .customerName(client.name())
+                .customerEmail(client.email())
                 .bookingReason(client.reason())
                 .customerPreferredLanguages(languages(client.languages()))
                 .startTime(start)
                 .endTime(end)
+                .bccEmailSent(true)
                 .status(status)
                 .assignedAt(start.minusDays(3))
                 .markedAt(status == BookingStatus.PENDING ? null : end.plusMinutes(10).isBefore(now) ? end.plusMinutes(10) : now)

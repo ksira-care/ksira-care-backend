@@ -1,22 +1,15 @@
 package com.ksiracare.backend.api;
 
 import jakarta.servlet.http.Cookie;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -24,34 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Drives the real application (dev profile: in-memory database, Flyway migrations, demo data)
- * through the security filters, the way the aapta portal and admin console do.
- */
-@SpringBootTest
-class ApiIntegrationTest {
-
-    private static final String COOKIE = "ksira_session";
-
-    @Autowired
-    private WebApplicationContext context;
-    private MockMvc mvc;
-
-    @BeforeEach
-    void setUp() {
-        mvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
-    }
-
-    private MvcResult signIn(String email, String password) throws Exception {
-        return mvc.perform(post("/api/auth/login").contextPath("/api")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
-                .andReturn();
-    }
-
-    private Cookie session() throws Exception {
-        return signIn("aapta@ksiracare.com", "password123").getResponse().getCookie(COOKIE);
-    }
+class ApiIntegrationTest extends ApiTestSupport {
 
     @Test
     void signInSetsAnHttpOnlySessionCookieAndNoTokenInTheBody() throws Exception {
@@ -194,19 +160,6 @@ class ApiIntegrationTest {
     }
 
     // ── Admin ─────────────────────────────────────────────────
-
-    private static final String ADMIN_COOKIE = "ksira_admin_session";
-
-    private MvcResult adminSignIn(String email, String password) throws Exception {
-        return mvc.perform(post("/api/admin/auth/login").contextPath("/api")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
-                .andReturn();
-    }
-
-    private Cookie adminSession() throws Exception {
-        return adminSignIn("admin@ksiracare.com", "password123").getResponse().getCookie(ADMIN_COOKIE);
-    }
 
     @Test
     void adminSignInSetsItsOwnCookieScopedToTheAdminApi() throws Exception {

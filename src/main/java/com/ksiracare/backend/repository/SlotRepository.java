@@ -1,6 +1,7 @@
 package com.ksiracare.backend.repository;
 
 import com.ksiracare.backend.entity.Slot;
+import com.ksiracare.backend.enums.SlotStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -24,4 +26,15 @@ public interface SlotRepository extends JpaRepository<Slot, UUID> {
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
+
+    /** Open hours starting exactly at {@code slotTime}, of active aaptas, by name. */
+    @Query("""
+            SELECT s FROM Slot s JOIN FETCH s.aapta a
+            WHERE s.slotTime = :slotTime AND s.status = :status AND a.active = TRUE
+            ORDER BY a.firstName ASC, a.lastName ASC
+            """)
+    List<Slot> findAtTimeWithStatus(@Param("slotTime") LocalDateTime slotTime, @Param("status") SlotStatus status);
+
+    @Query("SELECT s FROM Slot s WHERE s.aapta.id = :aaptaId AND s.slotTime = :slotTime")
+    Optional<Slot> findForAaptaAt(@Param("aaptaId") UUID aaptaId, @Param("slotTime") LocalDateTime slotTime);
 }
