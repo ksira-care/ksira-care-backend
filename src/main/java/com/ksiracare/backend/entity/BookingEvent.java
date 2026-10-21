@@ -60,9 +60,13 @@ public class BookingEvent {
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
 
+    /** Free text where the change needs explaining, e.g. why a booking was cancelled. */
+    @Column(length = 500)
+    private String note;
+
     @Builder
     private BookingEvent(Booking booking, BookingEventType type, Role actorRole, UUID actorId,
-                         Aapta previousAapta, Aapta aapta, LocalDateTime occurredAt) {
+                         Aapta previousAapta, Aapta aapta, LocalDateTime occurredAt, String note) {
         this.booking = booking;
         this.type = type;
         this.actorRole = actorRole;
@@ -70,6 +74,7 @@ public class BookingEvent {
         this.previousAapta = previousAapta;
         this.aapta = aapta;
         this.occurredAt = occurredAt;
+        this.note = note;
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.ksiracare.backend.policy;
 import com.ksiracare.backend.config.AdminProperties;
 import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.enums.BookingStatus;
+import com.ksiracare.backend.exception.BookingNotCancellableException;
 import com.ksiracare.backend.exception.BookingNotEditableException;
 import org.junit.jupiter.api.Test;
 
@@ -47,5 +48,22 @@ class AdminBookingPolicyTest {
                 .build();
 
         assertThat(policy.isEditable(cancelled, utc("2026-10-12T10:00"))).isFalse();
+    }
+
+    @Test
+    void onlyUnmarkedBookingsCanBeCancelledWhateverTheTime() {
+        Booking pending = Booking.builder().startTime(utc("2026-09-01T10:00")).endTime(utc("2026-09-01T11:00")).build();
+        Booking completed = Booking.builder().startTime(utc("2026-10-12T13:00")).endTime(utc("2026-10-12T14:00"))
+                .status(BookingStatus.COMPLETED).build();
+        Booking cancelled = Booking.builder().startTime(utc("2026-10-12T13:00")).endTime(utc("2026-10-12T14:00"))
+                .status(BookingStatus.CANCELLED).build();
+
+        assertThat(policy.isCancellable(pending)).as("long past, never marked").isTrue();
+        assertThatThrownBy(() -> policy.checkCancellable(completed))
+                .isInstanceOf(BookingNotCancellableException.class)
+                .hasMessageContaining("marked");
+        assertThatThrownBy(() -> policy.checkCancellable(cancelled))
+                .isInstanceOf(BookingNotCancellableException.class)
+                .hasMessageContaining("already cancelled");
     }
 }

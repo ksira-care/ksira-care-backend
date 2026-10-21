@@ -1,6 +1,7 @@
 package com.ksiracare.backend.service;
 
 import com.ksiracare.backend.dto.request.AdminBookingUpdateRequestDto;
+import com.ksiracare.backend.dto.request.AdminCancelBookingRequestDto;
 import com.ksiracare.backend.dto.response.AaptaRefDto;
 import com.ksiracare.backend.dto.response.AdminBookingDto;
 import com.ksiracare.backend.dto.response.BookingFormDto;
@@ -31,20 +32,26 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * The admin console's bookings: see a day, allocate or change the aapta, record the BCC email.
- * When changes are allowed is decided by {@link AdminBookingPolicy}; outcomes are the aapta's.
+ * The admin console's bookings: see a day, allocate or change the aapta, record the BCC email,
+ * cancel. What is allowed when is decided by {@link AdminBookingPolicy}; outcomes are the aapta's.
  * Admins see every booking, cancelled ones included: the row's status tells them apart.
  */
 @Service
 @RequiredArgsConstructor
 public class AdminBookingService {
+
+    /** The history a day-view row shows. */
+    private static final Set<BookingEventType> ROW_HISTORY =
+            EnumSet.of(BookingEventType.AAPTA_REALLOCATED, BookingEventType.BOOKING_CANCELLED);
 
     private final BookingRepository bookingRepository;
     private final SlotRepository slotRepository;
@@ -58,9 +65,9 @@ public class AdminBookingService {
     public List<AdminBookingDto> getDay(LocalDate date) {
         UtcRange day = calendar.dayOf(date);
         List<Booking> bookings = bookingRepository.findStartingBetween(day.start(), day.end());
-        Map<UUID, Aapta> previous = previousAaptas(bookings.stream().map(Booking::getId).toList());
+        Map<UUID, History> histories = histories(bookings.stream().map(Booking::getId).toList());
         LocalDateTime now = calendar.nowUtc();
-        return bookings.stream().map(booking -> toRow(booking, previous.get(booking.getId()), now)).toList();
+        return bookings.stream().map(booking -> toRow(booking, histories.get(booking.getId()), now)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -89,10 +96,7 @@ public class AdminBookingService {
     @Transactional
     public AdminBookingDto update(AdminPrincipal admin, UUID bookingId, AdminBookingUpdateRequestDto request) {
         Booking booking = find(bookingId);
-        if (!Objects.equals(booking.getVersion(), request.version())) {
-            throw new ApiException(ErrorCode.CONCURRENT_UPDATE,
-                    "This booking was changed by someone else. Please reload and try again.");
-        }
+        checkVersion(booking, request.version());
         LocalDateTime now = calendar.nowUtc();
         policy.checkEditable(booking, now);
 
@@ -101,16 +105,42 @@ public class AdminBookingService {
             Slot slot = openSlot(request.aaptaId(), booking.getStartTime());
             booking.allocateTo(slot, now);
             record(booking, current == null ? BookingEventType.AAPTA_ALLOCATED : BookingEventType.AAPTA_REALLOCATED,
-                    admin, current, slot.getAapta(), now);
+                    admin, current, slot.getAapta(), now, null);
         }
         if (booking.isBccEmailSent() != request.bccEmailSent()) {
             booking.setBccEmailSent(request.bccEmailSent());
             record(booking, request.bccEmailSent() ? BookingEventType.BCC_EMAIL_MARKED_SENT : BookingEventType.BCC_EMAIL_MARKED_NOT_SENT,
-                    admin, null, booking.getAapta(), now);
+                    admin, null, booking.getAapta(), now, null);
         }
+        return saveAndShow(booking, now);
+    }
 
+    /**
+     * Calls the session off, at any time, as long as the aapta hasn't marked it. Their hour opens
+     * again; the reason is kept in the booking's history. There is no undo.
+     */
+    @Transactional
+    public AdminBookingDto cancel(AdminPrincipal admin, UUID bookingId, AdminCancelBookingRequestDto request) {
+        Booking booking = find(bookingId);
+        checkVersion(booking, request.version());
+        policy.checkCancellable(booking);
+
+        LocalDateTime now = calendar.nowUtc();
+        booking.cancel();
+        record(booking, BookingEventType.BOOKING_CANCELLED, admin, null, booking.getAapta(), now, request.reason().trim());
+        return saveAndShow(booking, now);
+    }
+
+    private static void checkVersion(Booking booking, Long loadedVersion) {
+        if (!Objects.equals(booking.getVersion(), loadedVersion)) {
+            throw new ApiException(ErrorCode.CONCURRENT_UPDATE,
+                    "This booking was changed by someone else. Please reload and try again.");
+        }
+    }
+
+    private AdminBookingDto saveAndShow(Booking booking, LocalDateTime now) {
         Booking saved = bookingRepository.saveAndFlush(booking);
-        return toRow(saved, previousAaptas(List.of(saved.getId())).get(saved.getId()), now);
+        return toRow(saved, histories(List.of(saved.getId())).get(saved.getId()), now);
     }
 
     private Slot openSlot(UUID aaptaId, LocalDateTime start) {
@@ -120,7 +150,7 @@ public class AdminBookingService {
     }
 
     private void record(Booking booking, BookingEventType type, AdminPrincipal admin,
-                        Aapta previousAapta, Aapta aapta, LocalDateTime now) {
+                        Aapta previousAapta, Aapta aapta, LocalDateTime now, String note) {
         eventRepository.save(BookingEvent.builder()
                 .booking(booking)
                 .type(type)
@@ -129,22 +159,44 @@ public class AdminBookingService {
                 .previousAapta(previousAapta)
                 .aapta(aapta)
                 .occurredAt(now)
+                .note(note)
                 .build());
     }
 
-    /** Booking id → who held it before its latest reallocation. */
-    private Map<UUID, Aapta> previousAaptas(Collection<UUID> bookingIds) {
-        Map<UUID, Aapta> previous = new HashMap<>();
-        if (!bookingIds.isEmpty()) {
-            // Newest first, so the first event seen per booking is its latest.
-            eventRepository.findForBookings(bookingIds, BookingEventType.AAPTA_REALLOCATED)
-                    .forEach(event -> previous.putIfAbsent(event.getBooking().getId(), event.getPreviousAapta()));
-        }
-        return previous;
+    /**
+     * What a row shows from a booking's history.
+     *
+     * @param previousAapta who held it before its latest reallocation ("Was Aanya M.")
+     * @param cancelReason  why it was cancelled
+     */
+    private record History(Aapta previousAapta, String cancelReason) {
+        static final History NONE = new History(null, null);
     }
 
-    private AdminBookingDto toRow(Booking booking, Aapta previousAapta, LocalDateTime now) {
-        return mapper.toRow(booking, previousAapta, policy.isEditable(booking, now), policy.editableFrom(booking));
+    /** Booking id → its row history, from one query. Bookings with none are absent. */
+    private Map<UUID, History> histories(Collection<UUID> bookingIds) {
+        Map<UUID, History> histories = new HashMap<>();
+        if (bookingIds.isEmpty()) {
+            return histories;
+        }
+        // Newest first, so the first event of each type seen per booking is its latest.
+        for (BookingEvent event : eventRepository.findForBookings(bookingIds, ROW_HISTORY)) {
+            History history = histories.getOrDefault(event.getBooking().getId(), History.NONE);
+            histories.put(event.getBooking().getId(), switch (event.getType()) {
+                case AAPTA_REALLOCATED -> history.previousAapta() != null ? history
+                        : new History(event.getPreviousAapta(), history.cancelReason());
+                case BOOKING_CANCELLED -> history.cancelReason() != null ? history
+                        : new History(history.previousAapta(), event.getNote());
+                default -> history;
+            });
+        }
+        return histories;
+    }
+
+    private AdminBookingDto toRow(Booking booking, History history, LocalDateTime now) {
+        History shown = history == null ? History.NONE : history;
+        return mapper.toRow(booking, shown.previousAapta(), shown.cancelReason(),
+                policy.isEditable(booking, now), policy.editableFrom(booking), policy.isCancellable(booking));
     }
 
     private Booking find(UUID bookingId) {

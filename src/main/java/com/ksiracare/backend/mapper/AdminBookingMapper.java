@@ -25,8 +25,9 @@ public interface AdminBookingMapper {
     @Mapping(source = "createdAt", target = "submittedAt")
     BookingFormDto toForm(Booking booking);
 
-    /** A day-view row; editability and history are worked out by the caller. */
-    default AdminBookingDto toRow(Booking booking, Aapta previousAapta, boolean editable, LocalDateTime editableFrom) {
+    /** A day-view row; what the admin may do, and the booking's history, are worked out by the caller. */
+    default AdminBookingDto toRow(Booking booking, Aapta previousAapta, String cancelReason,
+                                  boolean editable, LocalDateTime editableFrom, boolean cancellable) {
         return new AdminBookingDto(
                 booking.getId(),
                 CommonMappings.toMillis(booking.getStartTime()),
@@ -39,6 +40,8 @@ public interface AdminBookingMapper {
                 CommonMappings.toMillis(booking.getMarkedAt()),
                 editable,
                 CommonMappings.toMillis(editableFrom),
+                cancellable,
+                cancelReason,
                 booking.getVersion());
     }
 }

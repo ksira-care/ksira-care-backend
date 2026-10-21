@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -196,6 +197,73 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
                 .andExpect(status().isUnauthorized());
     }
 
+    // ── cancellation ─────────────────────────────────────────
+
+    @Test
+    void cancellingFreesTheHourAndKeepsTheReasonWhateverTheDate() throws Exception {
+        LocalDateTime nextWeek = soon.plusDays(7);
+        openAt(anika, nextWeek);
+        Booking booking = booking(nextWeek, "Kabir Nair");
+        Slot slot = slotRepository.findForAaptaAt(anika.getId(), nextWeek).orElseThrow();
+        booking.allocateTo(slot, calendar.nowUtc());
+        // Outside a transaction here, so the slot (not cascaded from the booking) is saved explicitly.
+        slotRepository.save(slot);
+        bookingRepository.save(booking);
+        assertThat(slotRepository.findForAaptaAt(anika.getId(), nextWeek).orElseThrow().getStatus()).isEqualTo(SlotStatus.BOOKED);
+
+        cancel(booking.getId(), "Client asked to call it off.", version(booking.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bookingStatus").value("CANCELLED"))
+                .andExpect(jsonPath("$.cancelReason").value("Client asked to call it off."))
+                .andExpect(jsonPath("$.cancellable").value(false))
+                .andExpect(jsonPath("$.editable").value(false));
+
+        assertThat(slotRepository.findForAaptaAt(anika.getId(), nextWeek).orElseThrow().getStatus())
+                .isEqualTo(SlotStatus.AAPTA_AVAILABLE);
+        dayOf(nextWeek)
+                .andExpect(row(booking, "bookingStatus").value("CANCELLED"))
+                .andExpect(row(booking, "cancelReason").value("Client asked to call it off."));
+    }
+
+    @Test
+    void anUnallocatedBookingCanBeCancelledToo() throws Exception {
+        Booking booking = booking(soon, "Farah Ali");
+
+        cancel(booking.getId(), "Duplicate request.", version(booking.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.bookingStatus").value("CANCELLED"));
+    }
+
+    @Test
+    void aMarkedOrAlreadyCancelledBookingCantBeCancelled() throws Exception {
+        Booking completed = booking(soon.minusDays(2), "Sara Lopez");
+        completed.setStatus(BookingStatus.COMPLETED);
+        bookingRepository.save(completed);
+        Booking cancelled = booking(soon, "Omar Farouk");
+        cancel(cancelled.getId(), "First time.", version(cancelled.getId())).andExpect(status().isOk());
+
+        cancel(completed.getId(), "Too late.", version(completed.getId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BOOKING_NOT_CANCELLABLE"));
+        cancel(cancelled.getId(), "Again.", version(cancelled.getId()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BOOKING_NOT_CANCELLABLE"));
+    }
+
+    @Test
+    void aReasonIsRequiredAndAStaleVersionIsRejected() throws Exception {
+        Booking booking = booking(soon, "Farah Ali");
+        long loaded = version(booking.getId());
+
+        cancel(booking.getId(), "   ", loaded)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        save(booking.getId(), anika.getId(), false, loaded).andExpect(status().isOk());
+        cancel(booking.getId(), "Changed my mind.", loaded)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONCURRENT_UPDATE"));
+    }
+
     // ── helpers ──────────────────────────────────────────────
 
     private Aapta aapta(String first, String last) {
@@ -243,6 +311,12 @@ class AdminBookingApiIntegrationTest extends ApiTestSupport {
         return mvc.perform(patch("/api/admin/bookings/{id}", bookingId).contextPath("/api").cookie(admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"aaptaId\":\"%s\",\"bccEmailSent\":%s,\"version\":%d}".formatted(aaptaId, bcc, version)));
+    }
+
+    private ResultActions cancel(UUID bookingId, String reason, long version) throws Exception {
+        return mvc.perform(post("/api/admin/bookings/{id}/cancel", bookingId).contextPath("/api").cookie(admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"%s\",\"version\":%d}".formatted(reason, version)));
     }
 
     private void assertBookingVisibleTo(Aapta aapta, Booking booking, boolean visible) throws Exception {

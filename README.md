@@ -155,6 +155,7 @@ Admin console:
 | `GET`  | `/admin/bookings/{id}/form` | the website booking form as the client filled it: `{name, email, notes, consent, submittedAt}` |
 | `GET`  | `/admin/bookings/{id}/aapta-options` | `{aaptas: [...]}` — the current aapta, then active aaptas who opened that hour |
 | `PATCH`| `/admin/bookings/{id}` | `{aaptaId, bccEmailSent, version}` — "Add" / "Update"; answers with the updated row |
+| `POST` | `/admin/bookings/{id}/cancel` | `{reason, version}` — calls the session off; answers with the updated row |
 | `GET`  | `/admin/availability?date=YYYY-MM-DD` | view-only grid for any date: `{date, hours: [{time, openAaptas}], aaptas: [{aaptaId, firstName, lastName, slots: [{time, status, booking}]}]}` — each aapta's `slots` line up with `hours`; `booking` (`{bookingId, client}`) is set on BOOKED cells |
 
 Booking rules in the admin console:
@@ -164,7 +165,11 @@ Booking rules in the admin console:
 - **Aapta:** only someone who opened that hour (`409 AAPTA_NOT_AVAILABLE` otherwise). Their hour
   becomes booked; on a change, the previous aapta's hour opens again.
 - **BCC email:** set by the admin; changing the aapta leaves it as it was.
-- **Cancelled bookings** are listed with `bookingStatus: CANCELLED` and are never editable.
+- **Cancelling:** any date, any time — not limited to the 24-hour window — as long as the aapta
+  hasn't marked the session (`409 BOOKING_NOT_CANCELLABLE` otherwise). A reason is required and
+  kept in the history; the aapta's hour opens again. There is no undo. Rows carry `cancellable`.
+- **Cancelled bookings** stay listed with `bookingStatus: CANCELLED` and their `cancelReason`,
+  and are never editable; aaptas no longer see them.
 - **Outcome:** read-only here — it is the aapta's mark from their portal, and a reassignment
   clears it back to pending.
 - **History:** every change is stored in `booking_events` (who, when, from → to); the day view

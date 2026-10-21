@@ -13,6 +13,8 @@ import java.util.UUID;
  * @param markedAt      when the aapta marked it, or null
  * @param editable      whether the admin may change the aapta and BCC flag right now
  * @param editableFrom  when it becomes editable (24 h before the start); it stops at {@code startTime}
+ * @param cancellable   whether the admin may cancel it now (any time while the aapta hasn't marked it)
+ * @param cancelReason  why an admin cancelled it, or null
  * @param version       send back unchanged when saving, so concurrent edits are detected
  */
 public record AdminBookingDto(
@@ -27,6 +29,8 @@ public record AdminBookingDto(
         Long markedAt,
         boolean editable,
         Long editableFrom,
+        boolean cancellable,
+        String cancelReason,
         Long version
 ) {
 }

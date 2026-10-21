@@ -12,14 +12,14 @@ import java.util.UUID;
 
 public interface BookingEventRepository extends JpaRepository<BookingEvent, UUID> {
 
-    /** Events of one type for the given bookings, newest first, with the aaptas involved loaded. */
+    /** Events of the given types for the given bookings, newest first, with the aaptas involved loaded. */
     @Query("""
             SELECT e FROM BookingEvent e
             LEFT JOIN FETCH e.previousAapta
             LEFT JOIN FETCH e.aapta
-            WHERE e.booking.id IN :bookingIds AND e.type = :type
+            WHERE e.booking.id IN :bookingIds AND e.type IN :types
             ORDER BY e.occurredAt DESC
             """)
     List<BookingEvent> findForBookings(@Param("bookingIds") Collection<UUID> bookingIds,
-                                       @Param("type") BookingEventType type);
+                                       @Param("types") Collection<BookingEventType> types);
 }

@@ -137,6 +137,18 @@ public class Booking {
         this.markedAt = null;
     }
 
+    /**
+     * Calls the session off. The aapta's hour opens again for other bookings; who held the
+     * booking is kept for the record. Callers check that cancelling is allowed.
+     */
+    public void cancel() {
+        if (this.slot != null) {
+            this.slot.release();
+            this.slot = null;
+        }
+        this.status = BookingStatus.CANCELLED;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
