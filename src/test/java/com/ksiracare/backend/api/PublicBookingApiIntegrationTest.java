@@ -86,7 +86,8 @@ class PublicBookingApiIntegrationTest extends ApiTestSupport {
         assertThat(booking.getConsentGivenAt()).isNotNull();
         mvc.perform(get("/api/admin/bookings/{id}/form", booking.getId()).contextPath("/api").cookie(adminSession()))
                 .andExpect(jsonPath("$.name").value("Tom H"))
-                .andExpect(jsonPath("$.consent").value(true));
+                .andExpect(jsonPath("$.consent").value(true))
+                .andExpect(jsonPath("$.languages", contains("kn")));
     }
 
     @Test

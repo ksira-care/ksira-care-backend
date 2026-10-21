@@ -72,10 +72,11 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("to") LocalDateTime to
     );
 
-    /** Every booking starting in [from, to), whoever holds it and whatever its status, with its aapta loaded. */
+    /** Every booking starting in [from, to), whoever holds it and whatever its status, with its aapta and the client's languages loaded. */
     @Query("""
-            SELECT b FROM Booking b
+            SELECT DISTINCT b FROM Booking b
             LEFT JOIN FETCH b.aapta
+            LEFT JOIN FETCH b.customerPreferredLanguages
             WHERE b.startTime >= :from AND b.startTime < :to
             ORDER BY b.startTime ASC
             """)

@@ -20,6 +20,7 @@ public interface AdminBookingMapper {
     @Mapping(source = "id", target = "bookingId")
     @Mapping(source = "customerName", target = "name")
     @Mapping(source = "customerEmail", target = "email")
+    @Mapping(source = "customerPreferredLanguages", target = "languages")
     @Mapping(source = "bookingReason", target = "notes")
     @Mapping(target = "consent", expression = "java(booking.getConsentGivenAt() != null)")
     @Mapping(source = "createdAt", target = "submittedAt")
@@ -33,6 +34,7 @@ public interface AdminBookingMapper {
                 CommonMappings.toMillis(booking.getStartTime()),
                 CommonMappings.toMillis(booking.getEndTime()),
                 new ClientDto(booking.getCustomerName(), booking.getCustomerEmail()),
+                CommonMappings.toLanguages(booking.getCustomerPreferredLanguages()),
                 booking.getAapta() == null ? null : toRef(booking.getAapta()),
                 previousAapta == null ? null : toRef(previousAapta),
                 booking.isBccEmailSent(),

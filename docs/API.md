@@ -294,6 +294,7 @@ Returns every booking that starts that day, in start order. Cancelled bookings a
       "startTime": 1792643400000,
       "endTime": 1792647000000,
       "client": { "name": "Rohan", "email": "rohan@example.com" },
+      "clientLanguages": ["en", "hi"],
       "aapta": { "aaptaId": "6f1c…", "firstName": "Aanya", "lastName": "Mehta" },
       "previousAapta": { "aaptaId": "1a2b…", "firstName": "Ravi", "lastName": "Kumar" },
       "bccEmailSent": true,
@@ -321,6 +322,7 @@ Returns every booking that starts that day, in start order. Cancelled bookings a
   "bookingId": "c3d4e5f6-…",
   "name": "Rohan",
   "email": "rohan@example.com",
+  "languages": ["en", "hi"],
   "notes": "Work stress",
   "consent": true,
   "submittedAt": 1792487520000

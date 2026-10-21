@@ -6,7 +6,6 @@ import com.ksiracare.backend.time.EpochTime;
 
 import java.time.LocalDateTime;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Conversions shared by every mapper ({@code @Mapper(uses = CommonMappings.class)}). MapStruct
@@ -23,6 +22,6 @@ public final class CommonMappings {
     }
 
     public static Set<Language> toLanguages(Set<LanguageEntity> languages) {
-        return languages == null ? Set.of() : languages.stream().map(LanguageEntity::getCode).collect(Collectors.toSet());
+        return languages == null ? Set.of() : LanguageEntity.codes(languages);
     }
 }
