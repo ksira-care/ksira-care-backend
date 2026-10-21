@@ -3,6 +3,9 @@
 Spring Boot API for the aapta portal. Everything is served under `/api`
 (e.g. `https://ksiracare.com/api/...` behind the website's proxy).
 
+*Aapta* is Ksira Care's name for the listeners who hold sessions (formerly "therapist"); the
+code, database and API all use it.
+
 ## Run locally
 
 Requires **JDK 25**.
@@ -14,10 +17,10 @@ Requires **JDK 25**.
 
 Demo accounts (dev profile only):
 
-| Email                     | Password      |                      |
-|---------------------------|---------------|----------------------|
-| `aapta@ksiracare.com` | `password123` | active, with bookings and open hours |
-| `disabled@ksiracare.com`  | `password123` | deactivated          |
+| Email                    | Password      |                                      |
+|--------------------------|---------------|--------------------------------------|
+| `aapta@ksiracare.com`    | `password123` | active, with bookings and open hours |
+| `disabled@ksiracare.com` | `password123` | deactivated                          |
 
 To use the UI against this backend, run `npm run start:api` in the UI repo — it proxies
 `/api` to `localhost:8080`. API docs (dev only): http://localhost:8080/api/swagger-ui.html
@@ -40,8 +43,17 @@ The schema is managed by **Flyway** (`src/main/resources/db/migration`); Hiberna
 validates it. Add a new `V<n>__description.sql` for every schema change — never edit an
 applied migration.
 
-Portal rules live in `application.properties` (`ksira.portal.*`, `ksira.auth.*`): time zone
-(IST), opening hours (09:00–23:00), 60-day window, 2-hour sessions, sign-in rate limit.
+Portal rules live in `application.properties`:
+
+| Property | Default | |
+|----------|---------|---|
+| `ksira.portal.time-zone` | `Asia/Kolkata` | days, months and opening hours are in this zone |
+| `ksira.portal.first-slot-hour` / `last-slot-hour` | `9` / `23` | first and last session start |
+| `ksira.portal.session-length` | `PT1H` | sessions run back to back from the first start |
+| `ksira.portal.booking-window-days` | `60` | how far ahead aaptas may open hours |
+| `ksira.portal.max-query-range` | `P92D` | longest `startTime`–`endTime` range per request |
+| `ksira.auth.session-ttl` | `PT2H` | sign-in lasts this long, no refresh |
+| `ksira.auth.login-attempts.*` | 5 per 15 min | failed sign-ins before an email is blocked |
 
 ## Deploy (Render + Neon)
 
@@ -80,8 +92,8 @@ VALUES (gen_random_uuid(), 'Aanya', 'Mehta', 'aanya@ksiracare.com',
 
 -- Languages they speak (codes from the languages table: ENGLISH, HINDI, MARATHI, KANNADA)
 INSERT INTO aapta_languages (aapta_id, language_id)
-SELECT t.id, l.id FROM aaptas t, languages l
-WHERE t.email = 'aanya@ksiracare.com' AND l.code IN ('ENGLISH', 'HINDI');
+SELECT a.id, l.id FROM aaptas a, languages l
+WHERE a.email = 'aanya@ksiracare.com' AND l.code IN ('ENGLISH', 'HINDI');
 ```
 
 To deactivate someone: `UPDATE aaptas SET is_active = false WHERE email = '…';` — their
@@ -93,7 +105,10 @@ current session stops working on the next request.
   can read or change another aapta's data. Someone else's booking answers 404.
 - **Times** are stored in UTC and exchanged as epoch milliseconds. Calendar rules ("today",
   "this month", opening hours) use the portal time zone via `PortalCalendar`.
-- **Ranges** are start-inclusive, end-exclusive.
+- **Ranges** are start-inclusive, end-exclusive, and at most `max-query-range` long.
+- **Lists** come in an envelope (`{"bookings": [...]}`, `{"slots": [...]}`) so fields can be
+  added alongside them later without breaking clients.
+- **Enums** are exchanged by their exact names, e.g. `AAPTA_AVAILABLE`.
 - **Errors** are RFC 9457 problem details with a stable `code` (see `ErrorCode`), e.g.
   `{"status": 409, "code": "SLOT_BOOKED", "title": "Conflict", "detail": "..."}`.
 
@@ -105,8 +120,8 @@ current session stops working on the next request.
 | `POST` | `/auth/logout` | 204, clears the cookie |
 | `GET`  | `/aaptas/me` | profile; also the "am I signed in?" check (401 if not) |
 | `GET`  | `/aaptas/me/dashboard-summary` | `{completedThisMonth, completedAllTime, activeSince}` |
-| `GET`  | `/aaptas/me/slots?startTime&endTime` | every session hour in the range |
-| `POST` | `/aaptas/me/slots?startTime&endTime` | `[{id, time, status}]` — opens/closes only the hours sent |
+| `GET`  | `/aaptas/me/slots?startTime&endTime` | `{slots: [{id, time, status}]}` — every session hour in the range |
+| `POST` | `/aaptas/me/slots?startTime&endTime` | body `[{id, time, status}]` — opens/closes only the hours sent; answers like `GET` |
 | `GET`  | `/bookings?startTime&endTime` | `{bookings: [...]}`, cancelled ones excluded |
 | `PATCH`| `/bookings/{id}` | `{bookingStatus}`: `COMPLETED` / `CLIENT_NO_SHOW` once started; `PENDING` undoes a mark the same day |
 
