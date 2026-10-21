@@ -154,6 +154,15 @@ public class Booking {
     }
 
     /**
+     * The aapta didn't mark the session by the end of its day: it counts as their no-show (and
+     * the client is refunded).
+     */
+    public void recordAaptaNoShow(LocalDateTime now) {
+        this.status = BookingStatus.AAPTA_NO_SHOW;
+        this.markedAt = now;
+    }
+
+    /**
      * Calls the session off. The aapta's hour opens again for other bookings; who held the
      * booking is kept for the record. Callers check that cancelling is allowed.
      */

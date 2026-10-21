@@ -1,7 +1,7 @@
 package com.ksiracare.backend.entity;
 
+import com.ksiracare.backend.enums.Actor;
 import com.ksiracare.backend.enums.BookingEventType;
-import com.ksiracare.backend.security.Role;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -43,9 +43,10 @@ public class BookingEvent {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "actor_role", nullable = false)
-    private Role actorRole;
+    private Actor actor;
 
-    @Column(name = "actor_id", nullable = false)
+    /** The aapta or admin who made the change; null when the system did. */
+    @Column(name = "actor_id")
     private UUID actorId;
 
     /** For allocation events: who had the booking before (null on first allocation) and after. */
@@ -65,11 +66,11 @@ public class BookingEvent {
     private String note;
 
     @Builder
-    private BookingEvent(Booking booking, BookingEventType type, Role actorRole, UUID actorId,
+    private BookingEvent(Booking booking, BookingEventType type, Actor actor, UUID actorId,
                          Aapta previousAapta, Aapta aapta, LocalDateTime occurredAt, String note) {
         this.booking = booking;
         this.type = type;
-        this.actorRole = actorRole;
+        this.actor = actor;
         this.actorId = actorId;
         this.previousAapta = previousAapta;
         this.aapta = aapta;

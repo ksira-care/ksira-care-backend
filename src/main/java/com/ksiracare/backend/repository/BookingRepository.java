@@ -94,4 +94,12 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     List<Booking> findForAaptaWithStatusStartingAfter(@Param("aaptaId") UUID aaptaId,
                                                       @Param("status") BookingStatus status,
                                                       @Param("after") LocalDateTime after);
+
+    /** Allocated sessions still waiting for their aapta's mark that started before {@code before}. */
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.status = com.ksiracare.backend.enums.BookingStatus.PENDING
+              AND b.aapta IS NOT NULL AND b.startTime < :before
+            """)
+    List<Booking> findUnmarkedAllocatedStartingBefore(@Param("before") LocalDateTime before);
 }

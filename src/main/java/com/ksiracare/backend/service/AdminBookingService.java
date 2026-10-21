@@ -7,7 +7,6 @@ import com.ksiracare.backend.dto.response.AdminBookingDto;
 import com.ksiracare.backend.dto.response.BookingFormDto;
 import com.ksiracare.backend.entity.Aapta;
 import com.ksiracare.backend.entity.Booking;
-import com.ksiracare.backend.entity.BookingEvent;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.enums.BookingEventType;
 import com.ksiracare.backend.enums.SlotStatus;
@@ -17,7 +16,6 @@ import com.ksiracare.backend.exception.ErrorCode;
 import com.ksiracare.backend.exception.ResourceNotFoundException;
 import com.ksiracare.backend.mapper.AdminBookingMapper;
 import com.ksiracare.backend.policy.AdminBookingPolicy;
-import com.ksiracare.backend.repository.BookingEventRepository;
 import com.ksiracare.backend.repository.BookingRepository;
 import com.ksiracare.backend.repository.SlotRepository;
 import com.ksiracare.backend.security.AdminPrincipal;
@@ -30,13 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -48,13 +42,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AdminBookingService {
 
-    /** The history a day-view row shows. */
-    private static final Set<BookingEventType> ROW_HISTORY =
-            EnumSet.of(BookingEventType.AAPTA_REALLOCATED, BookingEventType.AAPTA_UNALLOCATED, BookingEventType.BOOKING_CANCELLED);
-
     private final BookingRepository bookingRepository;
     private final SlotRepository slotRepository;
-    private final BookingEventRepository eventRepository;
     private final BookingHistory history;
     private final AdminBookingPolicy policy;
     private final AdminBookingMapper mapper;
@@ -65,7 +54,7 @@ public class AdminBookingService {
     public List<AdminBookingDto> getDay(LocalDate date) {
         UtcRange day = calendar.dayOf(date);
         List<Booking> bookings = bookingRepository.findStartingBetween(day.start(), day.end());
-        Map<UUID, History> histories = histories(bookings.stream().map(Booking::getId).toList());
+        Map<UUID, BookingHistory.Summary> histories = history.summarise(bookings.stream().map(Booking::getId).toList());
         LocalDateTime now = calendar.nowUtc();
         return bookings.stream().map(booking -> toRow(booking, histories.get(booking.getId()), now)).toList();
     }
@@ -140,7 +129,7 @@ public class AdminBookingService {
 
     private AdminBookingDto saveAndShow(Booking booking, LocalDateTime now) {
         Booking saved = bookingRepository.saveAndFlush(booking);
-        return toRow(saved, histories(List.of(saved.getId())).get(saved.getId()), now);
+        return toRow(saved, history.summarise(List.of(saved.getId())).get(saved.getId()), now);
     }
 
     private Slot openSlot(UUID aaptaId, LocalDateTime start) {
@@ -149,39 +138,8 @@ public class AdminBookingService {
                 .orElseThrow(() -> new AaptaNotAvailableException("That aapta hasn't opened this hour, or it's no longer free."));
     }
 
-    /**
-     * What a row shows from a booking's history.
-     *
-     * @param previousAapta who held it before it was last moved or unallocated ("Was Aanya M.")
-     * @param cancelReason  why it was cancelled
-     */
-    private record History(Aapta previousAapta, String cancelReason) {
-        static final History NONE = new History(null, null);
-    }
-
-    /** Booking id → its row history, from one query. Bookings with none are absent. */
-    private Map<UUID, History> histories(Collection<UUID> bookingIds) {
-        Map<UUID, History> histories = new HashMap<>();
-        if (bookingIds.isEmpty()) {
-            return histories;
-        }
-        // Newest first, so the first event of each type seen per booking is its latest.
-        for (BookingEvent event : eventRepository.findForBookings(bookingIds, ROW_HISTORY)) {
-            History seen = histories.getOrDefault(event.getBooking().getId(), History.NONE);
-            histories.put(event.getBooking().getId(), switch (event.getType()) {
-                case AAPTA_REALLOCATED, AAPTA_UNALLOCATED -> seen.previousAapta() != null ? seen
-                        : new History(event.getPreviousAapta(), seen.cancelReason());
-                case BOOKING_CANCELLED -> seen.cancelReason() != null ? seen
-                        : new History(seen.previousAapta(), event.getNote());
-                default -> seen;
-            });
-        }
-        return histories;
-    }
-
-    private AdminBookingDto toRow(Booking booking, History history, LocalDateTime now) {
-        History shown = history == null ? History.NONE : history;
-        return mapper.toRow(booking, shown.previousAapta(), shown.cancelReason(),
+    private AdminBookingDto toRow(Booking booking, BookingHistory.Summary summary, LocalDateTime now) {
+        return mapper.toRow(booking, summary.previousAapta(), summary.cancelReason(),
                 policy.isEditable(booking, now), policy.editableFrom(booking), policy.isCancellable(booking));
     }
 

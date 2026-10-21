@@ -11,5 +11,7 @@ public enum BookingEventType {
     BCC_EMAIL_MARKED_SENT,
     BCC_EMAIL_MARKED_NOT_SENT,
     /** An admin called the session off; the event's note says why. */
-    BOOKING_CANCELLED
+    BOOKING_CANCELLED,
+    /** The aapta didn't mark the session by the end of its day, so it counts as their no-show. */
+    AAPTA_NO_SHOW_RECORDED
 }
