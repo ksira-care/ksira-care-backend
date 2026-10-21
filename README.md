@@ -168,6 +168,8 @@ Admin console:
 | `POST` | `/admin/aaptas` | `{firstName, middleName?, lastName, email, languages: ["en", …], password}` → 201; `409 EMAIL_TAKEN` |
 | `DELETE`| `/admin/aaptas/{id}` | removes the aapta → `{aaptaId, unallocatedBookings}` |
 | `GET`  | `/admin/languages` | `{languages: [{code, name}]}` — the languages aaptas can be given |
+| `GET`  | `/admin/history?month=YYYY-MM` | one month (this month by default; only this month and last): `{month, months, summary, sessions, olderMonthsNotExported}` |
+| `POST` | `/admin/history/export` | `ksira-sessions-YYYY-MM.csv` — always **last** month; then deletes older months that were already exported (`X-Deleted-Months`, `X-Not-Exported-Months` headers) |
 | `GET`  | `/admin/availability?date=YYYY-MM-DD` | view-only grid for any date: `{date, hours: [{time, openAaptas}], aaptas: [{aaptaId, firstName, lastName, slots: [{time, status, booking}]}]}` — each aapta's `slots` line up with `hours`; `booking` (`{bookingId, client}`) is set on BOOKED cells |
 
 Booking rules in the admin console:
@@ -189,6 +191,14 @@ Booking rules in the admin console:
 - **Adding an aapta:** the admin sets their login (email, stored lower-case and unique) and a
   first password (8–72 characters) and shares it with them; the aapta can change it with
   `POST /auth/password`. Languages are ISO 639-1 codes — the UI formats them for display.
+- **Marking deadline:** an allocated session still unmarked when its day ends (IST) becomes
+  `AAPTA_NO_SHOW` — the client is refunded. Checked hourly and on start-up (the free host sleeps).
+- **History** shows every booking of this month or last, any status, newest first; `refunded` is
+  set for aapta no-shows. **Export** is a `POST` because it deletes data: it always downloads last
+  month (UTF-8 CSV, every field, `-` for none, formula-like cells defused) and logs the export.
+  Bookings older than History's window (`ksira.admin.history-months`) are deleted — with their
+  history and the aaptas' hours — **only if their month was exported before**; a month nobody
+  exported is kept and listed in `olderMonthsNotExported`.
 - **Editing an aapta:** one profile format and one edit body for both sides, so the portal and
   the console always agree. Only the fields sent change (`""` clears middle name, phone or
   address). Aaptas change their name and personal details; admins change the login email and

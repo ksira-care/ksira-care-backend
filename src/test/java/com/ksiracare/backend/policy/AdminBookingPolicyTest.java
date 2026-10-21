@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AdminBookingPolicyTest {
 
-    private final AdminBookingPolicy policy = new AdminBookingPolicy(new AdminProperties(Duration.ofHours(24)));
+    private final AdminBookingPolicy policy = new AdminBookingPolicy(new AdminProperties(Duration.ofHours(24), 2));
 
     /** Tomorrow (Mon 12 Oct) at 13:00 IST. */
     private final Booking tomorrowAt13 = Booking.builder()

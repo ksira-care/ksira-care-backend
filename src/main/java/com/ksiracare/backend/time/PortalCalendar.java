@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
@@ -50,6 +51,14 @@ public class PortalCalendar {
 
     public UtcRange dayOf(LocalDate date) {
         return new UtcRange(toUtc(date, LocalTime.MIDNIGHT), toUtc(date.plusDays(1), LocalTime.MIDNIGHT));
+    }
+
+    public YearMonth currentMonth() {
+        return YearMonth.from(today());
+    }
+
+    public UtcRange monthOf(YearMonth month) {
+        return monthOf(month.atDay(1));
     }
 
     public UtcRange monthOf(LocalDate date) {

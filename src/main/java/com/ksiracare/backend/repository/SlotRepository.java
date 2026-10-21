@@ -3,6 +3,7 @@ package com.ksiracare.backend.repository;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.enums.SlotStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -50,4 +51,13 @@ public interface SlotRepository extends JpaRepository<Slot, UUID> {
     List<Slot> findForAaptaWithStatusStartingAfter(@Param("aaptaId") UUID aaptaId,
                                                    @Param("status") SlotStatus status,
                                                    @Param("after") LocalDateTime after);
+
+    /** Retention: deletes a period's hours that no booking points at (delete the bookings first). */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            DELETE FROM slots
+            WHERE slot_time >= :from AND slot_time < :to
+              AND id NOT IN (SELECT slot_id FROM bookings WHERE slot_id IS NOT NULL)
+            """)
+    int deleteUnbookedStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }

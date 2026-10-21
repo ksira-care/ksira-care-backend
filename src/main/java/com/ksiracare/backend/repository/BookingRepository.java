@@ -3,6 +3,7 @@ package com.ksiracare.backend.repository;
 import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.enums.BookingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -102,4 +103,30 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
               AND b.aapta IS NOT NULL AND b.startTime < :before
             """)
     List<Booking> findUnmarkedAllocatedStartingBefore(@Param("before") LocalDateTime before);
+
+    @Query("SELECT MIN(b.startTime) FROM Booking b")
+    Optional<LocalDateTime> findEarliestStart();
+
+    @Query("SELECT COUNT(b) FROM Booking b WHERE b.startTime >= :from AND b.startTime < :to")
+    long countStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    // ── Retention: deleting a period's bookings with everything that hangs off them ──
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            DELETE FROM booking_events
+            WHERE booking_id IN (SELECT id FROM bookings WHERE start_time >= :from AND start_time < :to)
+            """)
+    int deleteEventsOfBookingsStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = """
+            DELETE FROM booking_customer_languages
+            WHERE booking_id IN (SELECT id FROM bookings WHERE start_time >= :from AND start_time < :to)
+            """)
+    int deleteLanguagesOfBookingsStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(nativeQuery = true, value = "DELETE FROM bookings WHERE start_time >= :from AND start_time < :to")
+    int deleteStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }
