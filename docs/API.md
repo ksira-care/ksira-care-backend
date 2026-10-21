@@ -200,7 +200,7 @@ Errors: `SLOT_BOOKED` (the hour has a session), `INVALID_SLOT_TIME`.
 
 ### `PATCH /bookings/{bookingId}`
 
-The aapta marks the outcome; `PENDING` undoes a mark.
+The aapta marks the outcome once the session has started, and only on the session's own day (IST). `PENDING` undoes a mark, on the day it was made.
 
 ```json
 { "bookingStatus": "COMPLETED" }

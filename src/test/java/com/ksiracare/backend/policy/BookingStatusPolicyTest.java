@@ -46,6 +46,14 @@ class BookingStatusPolicyTest {
     }
 
     @Test
+    void aSessionCannotBeMarkedAfterItsDay() {
+        assertThatThrownBy(() -> policy.checkAaptaChange(
+                booking("2026-10-02T21:00", BookingStatus.PENDING, null), BookingStatus.COMPLETED, now))
+                .isInstanceOf(BookingStatusChangeException.class)
+                .hasMessageContaining("on the day");
+    }
+
+    @Test
     void aSessionCannotBeMarkedTwice() {
         assertThatThrownBy(() -> policy.checkAaptaChange(
                 booking("2026-10-03T10:00", BookingStatus.COMPLETED, "2026-10-03T11:10"), BookingStatus.CLIENT_NO_SHOW, now))
@@ -55,7 +63,7 @@ class BookingStatusPolicyTest {
     @Test
     void aMarkCanBeUndoneOnTheSameIstDay() {
         assertThatCode(() -> policy.checkAaptaChange(
-                booking("2026-10-02T09:00", BookingStatus.COMPLETED, "2026-10-03T00:30"), BookingStatus.PENDING, now))
+                booking("2026-10-03T09:00", BookingStatus.COMPLETED, "2026-10-03T10:05"), BookingStatus.PENDING, now))
                 .doesNotThrowAnyException();
     }
 

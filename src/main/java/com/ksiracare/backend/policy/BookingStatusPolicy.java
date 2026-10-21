@@ -13,7 +13,8 @@ import java.util.Set;
 /**
  * Which booking status changes an aapta may make:
  * <ul>
- *   <li>Mark a pending session COMPLETED or CLIENT_NO_SHOW — only once it has started.</li>
+ *   <li>Mark a pending session COMPLETED or CLIENT_NO_SHOW — once it has started, and only on its
+ *       own portal-zone day: after that it is recorded as an aapta no-show (see MarkingDeadlineService).</li>
  *   <li>Undo their own mark (back to PENDING) — only on the portal-zone day they made it.</li>
  *   <li>Anything else (AAPTA_NO_SHOW, CANCELLED, …) is for admins only.</li>
  * </ul>
@@ -43,6 +44,9 @@ public class BookingStatusPolicy {
         }
         if (nowUtc.isBefore(booking.getStartTime())) {
             throw new BookingStatusChangeException("A session can only be marked once it has started.");
+        }
+        if (!calendar.dateOf(booking.getStartTime()).equals(calendar.dateOf(nowUtc))) {
+            throw new BookingStatusChangeException("A session can only be marked on the day it takes place.");
         }
     }
 
