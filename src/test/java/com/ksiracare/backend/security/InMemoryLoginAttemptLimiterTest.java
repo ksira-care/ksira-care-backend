@@ -1,6 +1,6 @@
 package com.ksiracare.backend.security;
 
-import com.ksiracare.backend.config.AuthProperties;
+import com.ksiracare.backend.support.TestAuth;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -19,10 +19,7 @@ class InMemoryLoginAttemptLimiterTest {
         @Override public Clock withZone(java.time.ZoneId zone) { return this; }
         @Override public Instant instant() { return now.get(); }
     };
-    private final LoginAttemptLimiter limiter = new InMemoryLoginAttemptLimiter(new AuthProperties(
-            Duration.ofHours(2), "unused",
-            new AuthProperties.Cookie("c", "/api", "Strict", true),
-            new AuthProperties.LoginAttempts(5, Duration.ofMinutes(15))), clock);
+    private final LoginAttemptLimiter limiter = new InMemoryLoginAttemptLimiter(TestAuth.properties("unused"), clock);
 
     @Test
     void blocksAfterFiveFailuresRegardlessOfEmailCase() {

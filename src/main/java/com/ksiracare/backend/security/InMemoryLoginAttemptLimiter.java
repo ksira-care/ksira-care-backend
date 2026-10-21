@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Blocks an email after N failed sign-ins within a sliding window. Kept in memory, which is
+ * Blocks a key (role + email) after N failed sign-ins within a sliding window. Kept in memory, which is
  * enough for a single instance; with several instances behind a load balancer, swap in a
  * shared store (e.g. Redis) behind the same interface.
  */
@@ -32,8 +32,8 @@ public class InMemoryLoginAttemptLimiter implements LoginAttemptLimiter {
     }
 
     @Override
-    public boolean isBlocked(String email) {
-        Deque<Instant> recent = failures.get(key(email));
+    public boolean isBlocked(String key) {
+        Deque<Instant> recent = failures.get(normalise(key));
         if (recent == null) {
             return false;
         }
@@ -44,8 +44,8 @@ public class InMemoryLoginAttemptLimiter implements LoginAttemptLimiter {
     }
 
     @Override
-    public void recordFailure(String email) {
-        Deque<Instant> recent = failures.computeIfAbsent(key(email), k -> new ArrayDeque<>());
+    public void recordFailure(String key) {
+        Deque<Instant> recent = failures.computeIfAbsent(normalise(key), k -> new ArrayDeque<>());
         synchronized (recent) {
             dropExpired(recent);
             recent.addLast(clock.instant());
@@ -53,8 +53,8 @@ public class InMemoryLoginAttemptLimiter implements LoginAttemptLimiter {
     }
 
     @Override
-    public void recordSuccess(String email) {
-        failures.remove(key(email));
+    public void recordSuccess(String key) {
+        failures.remove(normalise(key));
     }
 
     private void dropExpired(Deque<Instant> recent) {
@@ -64,7 +64,7 @@ public class InMemoryLoginAttemptLimiter implements LoginAttemptLimiter {
         }
     }
 
-    private static String key(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
+    private static String normalise(String key) {
+        return key.trim().toLowerCase(Locale.ROOT);
     }
 }

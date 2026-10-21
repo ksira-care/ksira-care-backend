@@ -21,6 +21,7 @@ Demo accounts (dev profile only):
 |--------------------------|---------------|--------------------------------------|
 | `aapta@ksiracare.com`    | `password123` | active, with bookings and open hours |
 | `disabled@ksiracare.com` | `password123` | deactivated                          |
+| `admin@ksiracare.com`    | `password123` | admin console                        |
 
 To use the UI against this backend, run `npm run start:api` in the UI repo — it proxies
 `/api` to `localhost:8080`. API docs (dev only): http://localhost:8080/api/swagger-ui.html
@@ -99,10 +100,27 @@ WHERE a.email = 'aanya@ksiracare.com' AND l.code IN ('ENGLISH', 'HINDI');
 To deactivate someone: `UPDATE aaptas SET is_active = false WHERE email = '…';` — their
 current session stops working on the next request.
 
+### Adding an admin
+
+Admins are separate accounts in the `admins` table (an aapta's login doesn't open the admin
+console, and vice versa). Create the first one in Neon's SQL editor:
+
+```sql
+INSERT INTO admins (id, first_name, last_name, email, password, created_at, updated_at)
+VALUES (gen_random_uuid(), 'Meera', 'Iyer', 'meera@ksiracare.com',
+        crypt('<temporary password>', gen_salt('bf', 10)), now(), now());
+```
+
+Deactivate the same way: `UPDATE admins SET is_active = false WHERE email = '…';`.
+
 ## Conventions
 
-- **The aapta always comes from the session cookie**, never from the URL — so nobody
-  can read or change another aapta's data. Someone else's booking answers 404.
+- **The signed-in account always comes from the session cookie**, never from the URL — so
+  nobody can read or change another aapta's data. Someone else's booking answers 404.
+- **Two roles, two sessions.** Aaptas use the portal API with the `ksira_session` cookie
+  (path `/api`); admins use `/admin/**` with `ksira_admin_session` (path `/api/admin`). Each
+  part of the API only reads its own cookie (one Spring Security chain per `Role`), and the
+  token carries the role, so a session never works for the other side.
 - **Times** are stored in UTC and exchanged as epoch milliseconds. Calendar rules ("today",
   "this month", opening hours) use the portal time zone via `PortalCalendar`.
 - **Ranges** are start-inclusive, end-exclusive, and at most `max-query-range` long.
@@ -124,6 +142,14 @@ current session stops working on the next request.
 | `POST` | `/aaptas/me/slots?startTime&endTime` | body `[{id, time, status}]` — opens/closes only the hours sent; answers like `GET` |
 | `GET`  | `/bookings?startTime&endTime` | `{bookings: [...]}`, cancelled ones excluded |
 | `PATCH`| `/bookings/{id}` | `{bookingStatus}`: `COMPLETED` / `CLIENT_NO_SHOW` once started; `PENDING` undoes a mark the same day |
+
+Admin console:
+
+| Method | Path | |
+|--------|------|---|
+| `POST` | `/admin/auth/login` | `{email, password}` → `{adminId, email}` + httpOnly `ksira_admin_session` cookie (SameSite=Strict, 2 h) |
+| `POST` | `/admin/auth/logout` | 204, clears the admin cookie |
+| `GET`  | `/admin/me` | `{adminId, email, firstName, middleName, lastName}`; also the "am I signed in?" check |
 
 Error codes the portal relies on: `UNAUTHENTICATED`, `INVALID_CREDENTIALS`,
 `ACCOUNT_DISABLED`, `RATE_LIMITED`, `SLOT_BOOKED`, `INVALID_SLOT_TIME`,

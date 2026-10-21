@@ -26,10 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Drives the real application (dev profile: in-memory database, Flyway migrations, demo data)
- * through the security filters, the way the portal does.
+ * through the security filters, the way the aapta portal and admin console do.
  */
 @SpringBootTest
-class AaptaPortalApiIntegrationTest {
+class ApiIntegrationTest {
 
     private static final String COOKIE = "ksira_session";
 
@@ -191,5 +191,77 @@ class AaptaPortalApiIntegrationTest {
                         .content("{\"bookingStatus\":\"THERAPIST_NO_SHOW\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    // ── Admin ─────────────────────────────────────────────────
+
+    private static final String ADMIN_COOKIE = "ksira_admin_session";
+
+    private MvcResult adminSignIn(String email, String password) throws Exception {
+        return mvc.perform(post("/api/admin/auth/login").contextPath("/api")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
+                .andReturn();
+    }
+
+    private Cookie adminSession() throws Exception {
+        return adminSignIn("admin@ksiracare.com", "password123").getResponse().getCookie(ADMIN_COOKIE);
+    }
+
+    @Test
+    void adminSignInSetsItsOwnCookieScopedToTheAdminApi() throws Exception {
+        MvcResult result = adminSignIn("admin@ksiracare.com", "password123");
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        Cookie cookie = result.getResponse().getCookie(ADMIN_COOKIE);
+        assertThat(cookie).isNotNull();
+        assertThat(cookie.isHttpOnly()).isTrue();
+        assertThat(cookie.getPath()).isEqualTo("/api/admin");
+        assertThat(result.getResponse().getCookie(COOKIE)).as("no aapta session").isNull();
+        assertThat(result.getResponse().getContentAsString())
+                .contains("\"adminId\"")
+                .contains("\"email\":\"admin@ksiracare.com\"")
+                .doesNotContain("token");
+    }
+
+    @Test
+    void theAdminProfileComesFromTheAdminSession() throws Exception {
+        mvc.perform(get("/api/admin/me").contextPath("/api").cookie(adminSession()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("admin@ksiracare.com"))
+                .andExpect(jsonPath("$.firstName").value("Meera"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+        mvc.perform(get("/api/admin/me").contextPath("/api"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void aaptaAndAdminAccountsAndSessionsDontCross() throws Exception {
+        // Each account list only answers its own sign-in endpoint.
+        assertThat(adminSignIn("aapta@ksiracare.com", "password123").getResponse().getStatus()).isEqualTo(401);
+        assertThat(signIn("admin@ksiracare.com", "password123").getResponse().getStatus()).isEqualTo(401);
+
+        // An aapta session doesn't open the admin API, and vice versa — even if the token
+        // is moved into the other cookie.
+        Cookie aapta = session();
+        Cookie admin = adminSession();
+        mvc.perform(get("/api/admin/me").contextPath("/api").cookie(aapta))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/me").contextPath("/api").cookie(new Cookie(ADMIN_COOKIE, aapta.getValue())))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(admin))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(new Cookie(COOKIE, admin.getValue())))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminSignOutClearsOnlyTheAdminCookie() throws Exception {
+        mvc.perform(post("/api/admin/auth/logout").contextPath("/api"))
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge(ADMIN_COOKIE, 0))
+                .andExpect(cookie().path(ADMIN_COOKIE, "/api/admin"))
+                .andExpect(cookie().doesNotExist(COOKIE));
     }
 }

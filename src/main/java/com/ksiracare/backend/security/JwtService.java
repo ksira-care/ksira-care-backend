@@ -16,11 +16,15 @@ import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Issues and verifies the signed session token stored in the session cookie. */
+/**
+ * Issues and verifies the signed session token stored in the session cookie:
+ * {@code sub} = account id, plus the account's {@code email} and {@code role}.
+ */
 @Service
 public class JwtService {
 
-    private static final String AAPTA_ID_CLAIM = "aaptaId";
+    private static final String EMAIL_CLAIM = "email";
+    private static final String ROLE_CLAIM = "role";
     private static final int MIN_KEY_BYTES = 32;
 
     private final SecretKey signingKey;
@@ -33,19 +37,23 @@ public class JwtService {
         this.clock = clock;
     }
 
-    public String issue(UUID aaptaId, String email) {
+    public String issue(SessionPrincipal principal) {
         Instant now = clock.instant();
         return Jwts.builder()
-                .subject(email)
-                .claim(AAPTA_ID_CLAIM, aaptaId.toString())
+                .subject(principal.accountId().toString())
+                .claim(EMAIL_CLAIM, principal.email())
+                .claim(ROLE_CLAIM, principal.role().name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(ttl)))
                 .signWith(signingKey)
                 .compact();
     }
 
-    /** The aapta the token belongs to, or empty if it's tampered with, malformed or expired. */
-    public Optional<AaptaPrincipal> verify(String token) {
+    /**
+     * Who the token belongs to, or empty if it's tampered with, malformed, expired, or from an
+     * older format without a role (those sessions simply end).
+     */
+    public Optional<SessionPrincipal> verify(String token) {
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(signingKey)
@@ -53,12 +61,12 @@ public class JwtService {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            // Missing on tokens issued before the claim was renamed; those sessions simply end.
-            String aaptaId = claims.get(AAPTA_ID_CLAIM, String.class);
-            if (aaptaId == null) {
+            String role = claims.get(ROLE_CLAIM, String.class);
+            if (role == null || claims.getSubject() == null) {
                 return Optional.empty();
             }
-            return Optional.of(new AaptaPrincipal(UUID.fromString(aaptaId), claims.getSubject()));
+            return Optional.of(SessionPrincipal.of(
+                    Role.valueOf(role), UUID.fromString(claims.getSubject()), claims.get(EMAIL_CLAIM, String.class)));
         } catch (JwtException | IllegalArgumentException invalid) {
             return Optional.empty();
         }

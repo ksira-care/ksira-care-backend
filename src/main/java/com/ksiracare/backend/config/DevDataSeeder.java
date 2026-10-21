@@ -4,6 +4,7 @@ import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.entity.LanguageEntity;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.entity.Aapta;
+import com.ksiracare.backend.entity.Admin;
 import com.ksiracare.backend.enums.BookingStatus;
 import com.ksiracare.backend.enums.Language;
 import com.ksiracare.backend.enums.SlotStatus;
@@ -11,6 +12,7 @@ import com.ksiracare.backend.repository.BookingRepository;
 import com.ksiracare.backend.repository.LanguageRepository;
 import com.ksiracare.backend.repository.SlotRepository;
 import com.ksiracare.backend.repository.AaptaRepository;
+import com.ksiracare.backend.repository.AdminRepository;
 import com.ksiracare.backend.time.PortalCalendar;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +36,7 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>aapta@ksiracare.com / password123 — active, with bookings and open hours</li>
  *   <li>disabled@ksiracare.com / password123 — deactivated</li>
+ *   <li>admin@ksiracare.com / password123 — admin console</li>
  * </ul>
  */
 @Slf4j
@@ -45,6 +48,7 @@ public class DevDataSeeder implements ApplicationRunner {
     private static final String DEMO_PASSWORD = "password123";
 
     private final AaptaRepository aaptaRepository;
+    private final AdminRepository adminRepository;
     private final LanguageRepository languageRepository;
     private final BookingRepository bookingRepository;
     private final SlotRepository slotRepository;
@@ -75,9 +79,10 @@ public class DevDataSeeder implements ApplicationRunner {
         aanya.setAddress("Flat 402, Green Meadows, Pune 411014");
         aanya.setLanguages(languages(Language.ENGLISH, Language.HINDI, Language.MARATHI));
         createAapta("Dev", "Mehta", "disabled@ksiracare.com", false);
+        adminRepository.save(new Admin("Meera", "Iyer", "admin@ksiracare.com", passwordEncoder.encode(DEMO_PASSWORD)));
 
         seedBookingsAndHours(aanya);
-        log.info("Seeded dev data — sign in with aapta@ksiracare.com / {}", DEMO_PASSWORD);
+        log.info("Seeded dev data — sign in with aapta@ksiracare.com or admin@ksiracare.com / {}", DEMO_PASSWORD);
     }
 
     private Aapta createAapta(String first, String last, String email, boolean active) {
