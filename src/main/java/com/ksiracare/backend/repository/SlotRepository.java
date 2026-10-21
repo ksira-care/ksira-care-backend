@@ -37,4 +37,11 @@ public interface SlotRepository extends JpaRepository<Slot, UUID> {
 
     @Query("SELECT s FROM Slot s WHERE s.aapta.id = :aaptaId AND s.slotTime = :slotTime")
     Optional<Slot> findForAaptaAt(@Param("aaptaId") UUID aaptaId, @Param("slotTime") LocalDateTime slotTime);
+
+    /** Every aapta's recorded hours in [from, to), with the aapta loaded. */
+    @Query("""
+            SELECT s FROM Slot s JOIN FETCH s.aapta
+            WHERE s.slotTime >= :from AND s.slotTime < :to
+            """)
+    List<Slot> findStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 }

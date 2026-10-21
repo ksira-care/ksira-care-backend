@@ -155,6 +155,7 @@ Admin console:
 | `GET`  | `/admin/bookings/{id}/form` | the website booking form as the client filled it: `{name, email, notes, consent, submittedAt}` |
 | `GET`  | `/admin/bookings/{id}/aapta-options` | `{aaptas: [...]}` — the current aapta, then active aaptas who opened that hour |
 | `PATCH`| `/admin/bookings/{id}` | `{aaptaId, bccEmailSent, version}` — "Add" / "Update"; answers with the updated row |
+| `GET`  | `/admin/availability?date=YYYY-MM-DD` | view-only grid for any date: `{date, hours: [{time, openAaptas}], aaptas: [{aaptaId, firstName, lastName, slots: [{time, status, booking}]}]}` — each aapta's `slots` line up with `hours`; `booking` (`{bookingId, client}`) is set on BOOKED cells |
 
 Booking rules in the admin console:
 
