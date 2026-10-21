@@ -18,13 +18,15 @@ import java.util.UUID;
 
 /**
  * Issues and verifies the signed session token stored in the session cookie:
- * {@code sub} = account id, plus the account's {@code email} and {@code role}.
+ * {@code sub} = account id, plus the account's {@code email}, {@code role} and the session
+ * version ({@code sv}) it was issued under.
  */
 @Service
 public class JwtService {
 
     private static final String EMAIL_CLAIM = "email";
     private static final String ROLE_CLAIM = "role";
+    private static final String SESSION_VERSION_CLAIM = "sv";
     private static final int MIN_KEY_BYTES = 32;
 
     private final SecretKey signingKey;
@@ -37,12 +39,17 @@ public class JwtService {
         this.clock = clock;
     }
 
-    public String issue(SessionPrincipal principal) {
+    /** A verified token: who it belongs to, and the session version it was issued under. */
+    public record VerifiedSession(SessionPrincipal principal, int sessionVersion) {
+    }
+
+    public String issue(SessionPrincipal principal, int sessionVersion) {
         Instant now = clock.instant();
         return Jwts.builder()
                 .subject(principal.accountId().toString())
                 .claim(EMAIL_CLAIM, principal.email())
                 .claim(ROLE_CLAIM, principal.role().name())
+                .claim(SESSION_VERSION_CLAIM, sessionVersion)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(ttl)))
                 .signWith(signingKey)
@@ -51,9 +58,10 @@ public class JwtService {
 
     /**
      * Who the token belongs to, or empty if it's tampered with, malformed, expired, or from an
-     * older format without a role (those sessions simply end).
+     * older format without a role or session version (those sessions simply end). Whether the
+     * session version is still current is for the caller to check against the account.
      */
-    public Optional<SessionPrincipal> verify(String token) {
+    public Optional<VerifiedSession> verify(String token) {
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(signingKey)
@@ -62,18 +70,16 @@ public class JwtService {
                     .parseSignedClaims(token)
                     .getPayload();
             String role = claims.get(ROLE_CLAIM, String.class);
-            if (role == null || claims.getSubject() == null) {
+            Integer sessionVersion = claims.get(SESSION_VERSION_CLAIM, Integer.class);
+            if (role == null || sessionVersion == null || claims.getSubject() == null) {
                 return Optional.empty();
             }
-            return Optional.of(SessionPrincipal.of(
-                    Role.valueOf(role), UUID.fromString(claims.getSubject()), claims.get(EMAIL_CLAIM, String.class)));
+            SessionPrincipal principal = SessionPrincipal.of(
+                    Role.valueOf(role), UUID.fromString(claims.getSubject()), claims.get(EMAIL_CLAIM, String.class));
+            return Optional.of(new VerifiedSession(principal, sessionVersion));
         } catch (JwtException | IllegalArgumentException invalid) {
             return Optional.empty();
         }
-    }
-
-    public Duration ttl() {
-        return ttl;
     }
 
     private static SecretKey toKey(String base64Secret) {

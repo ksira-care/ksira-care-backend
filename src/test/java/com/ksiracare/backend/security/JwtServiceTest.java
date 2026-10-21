@@ -28,29 +28,31 @@ class JwtServiceTest {
     @Test
     void aTokenIdentifiesItsAaptaAndRole() {
         AaptaPrincipal aapta = new AaptaPrincipal(UUID.randomUUID(), "aanya@ksiracare.com");
-        String token = serviceAt(ISSUED, SECRET).issue(aapta);
+        String token = serviceAt(ISSUED, SECRET).issue(aapta, 3);
 
-        assertThat(serviceAt(ISSUED.plusSeconds(60), SECRET).verify(token)).contains(aapta);
+        assertThat(serviceAt(ISSUED.plusSeconds(60), SECRET).verify(token))
+                .contains(new JwtService.VerifiedSession(aapta, 3));
     }
 
     @Test
     void aTokenIdentifiesItsAdminAndRole() {
         AdminPrincipal admin = new AdminPrincipal(UUID.randomUUID(), "meera@ksiracare.com");
-        String token = serviceAt(ISSUED, SECRET).issue(admin);
+        String token = serviceAt(ISSUED, SECRET).issue(admin, 0);
 
-        assertThat(serviceAt(ISSUED.plusSeconds(60), SECRET).verify(token)).contains(admin);
+        assertThat(serviceAt(ISSUED.plusSeconds(60), SECRET).verify(token))
+                .contains(new JwtService.VerifiedSession(admin, 0));
     }
 
     @Test
     void anExpiredTokenIsRejected() {
-        String token = serviceAt(ISSUED, SECRET).issue(new AaptaPrincipal(UUID.randomUUID(), "aanya@ksiracare.com"));
+        String token = serviceAt(ISSUED, SECRET).issue(new AaptaPrincipal(UUID.randomUUID(), "aanya@ksiracare.com"), 0);
 
         assertThat(serviceAt(ISSUED.plus(Duration.ofHours(2)).plusSeconds(1), SECRET).verify(token)).isEmpty();
     }
 
     @Test
     void aTamperedOrForeignTokenIsRejected() {
-        String token = serviceAt(ISSUED, SECRET).issue(new AaptaPrincipal(UUID.randomUUID(), "aanya@ksiracare.com"));
+        String token = serviceAt(ISSUED, SECRET).issue(new AaptaPrincipal(UUID.randomUUID(), "aanya@ksiracare.com"), 0);
         String otherSecret = Base64.getEncoder().encodeToString("another-signing-key-that-is-long-enough!".getBytes());
 
         assertThat(serviceAt(ISSUED, otherSecret).verify(token)).isEmpty();
@@ -60,16 +62,21 @@ class JwtServiceTest {
 
     @Test
     void aValidlySignedTokenInAnOlderFormatIsRejected() {
-        // Sessions issued before roles existed: {"sub": email, "therapistId": ...}, no role.
+        // Sessions issued before roles existed: {"sub": email, "therapistId": ...}, no role or version.
         String legacy = signed(Jwts.builder()
                 .subject("aanya@ksiracare.com")
                 .claim("therapistId", UUID.randomUUID().toString()));
         String unknownRole = signed(Jwts.builder()
                 .subject(UUID.randomUUID().toString())
-                .claim("role", "SUPERUSER"));
+                .claim("role", "SUPERUSER")
+                .claim("sv", 0));
+        String noSessionVersion = signed(Jwts.builder()
+                .subject(UUID.randomUUID().toString())
+                .claim("role", "AAPTA"));
 
         assertThat(serviceAt(ISSUED, SECRET).verify(legacy)).isEmpty();
         assertThat(serviceAt(ISSUED, SECRET).verify(unknownRole)).isEmpty();
+        assertThat(serviceAt(ISSUED, SECRET).verify(noSessionVersion)).isEmpty();
     }
 
     @Test

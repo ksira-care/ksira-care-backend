@@ -19,12 +19,15 @@ import java.util.Optional;
 public class SessionCookies {
 
     private final AuthProperties.Cookie settings;
+    private final Duration maxAge;
 
     public SessionCookies(AuthProperties properties) {
         this.settings = properties.cookie();
+        this.maxAge = properties.sessionTtl();
     }
 
-    public ResponseCookie issue(Role role, String token, Duration maxAge) {
+    /** A cookie carrying a session token, living as long as the token does. */
+    public ResponseCookie issue(Role role, String token) {
         return base(role, token).maxAge(maxAge).build();
     }
 

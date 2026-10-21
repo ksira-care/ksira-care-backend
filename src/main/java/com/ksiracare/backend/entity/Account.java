@@ -57,6 +57,11 @@ public abstract class Account {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    /** Sessions are only accepted if issued under this version; see {@link #endAllSessions()}. */
+    @Setter(AccessLevel.NONE)
+    @Column(name = "session_version", nullable = false)
+    private int sessionVersion;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -70,6 +75,17 @@ public abstract class Account {
         this.lastName = lastName;
         this.email = email;
         this.password = passwordHash;
+    }
+
+    /** Signs the account out everywhere: every session issued before now stops working. */
+    public void endAllSessions() {
+        sessionVersion++;
+    }
+
+    /** Sets a new password (already BCrypt-encoded) and signs the account out everywhere. */
+    public void changePassword(String passwordHash) {
+        this.password = passwordHash;
+        endAllSessions();
     }
 
     @Override

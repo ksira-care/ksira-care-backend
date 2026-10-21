@@ -53,15 +53,21 @@ public class AuthService {
     public record LoginResult(SessionPrincipal principal, String sessionToken) {
     }
 
-    /** Changes the signed-in account's own password; the current one must be given. */
+    /**
+     * Changes the signed-in account's own password; the current one must be given. Every session
+     * of the account ends, on every device.
+     *
+     * @return a new session token for the device that made the change, so it stays signed in
+     */
     @Transactional
-    public void changePassword(SessionPrincipal me, ChangePasswordRequestDto request) {
+    public String changePassword(SessionPrincipal me, ChangePasswordRequestDto request) {
         Account account = accounts.findById(me.role(), me.accountId())
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found."));
         if (!passwordEncoder.matches(request.currentPassword(), account.getPassword())) {
             throw new CurrentPasswordIncorrectException("Your current password is incorrect.");
         }
-        account.setPassword(passwordEncoder.encode(request.newPassword()));
+        account.changePassword(passwordEncoder.encode(request.newPassword()));
+        return jwtService.issue(me, account.getSessionVersion());
     }
 
     @Transactional(readOnly = true)
@@ -86,6 +92,6 @@ public class AuthService {
 
         attemptLimiter.recordSuccess(limiterKey);
         SessionPrincipal principal = SessionPrincipal.of(role, account.get().getId(), account.get().getEmail());
-        return new LoginResult(principal, jwtService.issue(principal));
+        return new LoginResult(principal, jwtService.issue(principal, account.get().getSessionVersion()));
     }
 }

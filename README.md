@@ -122,6 +122,9 @@ Deactivate the same way: `UPDATE admins SET is_active = false WHERE email = '…
   (path `/api`); admins use `/admin/**` with `ksira_admin_session` (path `/api/admin`). Each
   part of the API only reads its own cookie (one Spring Security chain per `Role`), and the
   token carries the role, so a session never works for the other side.
+- **Ending sessions.** Each account has a session version, carried in its tokens. Changing the
+  password raises it, so every older session ends on its next request, on every device; the
+  device that made the change gets a fresh cookie. Deactivation ends sessions the same way.
 - **Times** are stored in UTC and exchanged as epoch milliseconds. Calendar rules ("today",
   "this month", opening hours) use the portal time zone via `PortalCalendar`.
 - **Ranges** are start-inclusive, end-exclusive, and at most `max-query-range` long.
@@ -137,7 +140,7 @@ Deactivate the same way: `UPDATE admins SET is_active = false WHERE email = '…
 |--------|------|---|
 | `POST` | `/auth/login` | `{email, password}` → `{aaptaId, email}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/auth/logout` | 204, clears the cookie |
-| `POST` | `/auth/password` | `{currentPassword, newPassword}` → 204; `422 CURRENT_PASSWORD_INCORRECT` if the current one is wrong |
+| `POST` | `/auth/password` | `{currentPassword, newPassword}` → 204 + a fresh session cookie; signs out every other device; `422 CURRENT_PASSWORD_INCORRECT` if the current one is wrong |
 | `GET`  | `/aaptas/me` | profile; also the "am I signed in?" check (401 if not) |
 | `GET`  | `/aaptas/me/dashboard-summary` | `{completedThisMonth, completedAllTime, activeSince}` |
 | `GET`  | `/aaptas/me/slots?startTime&endTime` | `{slots: [{id, time, status}]}` — every session hour in the range |
@@ -151,7 +154,7 @@ Admin console:
 |--------|------|---|
 | `POST` | `/admin/auth/login` | `{email, password}` → `{adminId, email}` + httpOnly `ksira_admin_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/admin/auth/logout` | 204, clears the admin cookie |
-| `POST` | `/admin/auth/password` | `{currentPassword, newPassword}` → 204, the admin's own password |
+| `POST` | `/admin/auth/password` | the same, for the admin's own password |
 | `GET`  | `/admin/me` | `{adminId, email, firstName, middleName, lastName}`; also the "am I signed in?" check |
 | `GET`  | `/admin/bookings?date=YYYY-MM-DD` | `{date, bookings: [...]}` — every booking that day (IST), cancelled ones included, with `editable`/`editableFrom` worked out by the server |
 | `GET`  | `/admin/bookings/{id}/form` | the website booking form as the client filled it: `{name, email, notes, consent, submittedAt}` |

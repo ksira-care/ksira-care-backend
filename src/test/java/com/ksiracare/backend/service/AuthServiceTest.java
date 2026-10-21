@@ -22,6 +22,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -47,7 +48,7 @@ class AuthServiceTest {
         doReturn(Optional.empty()).when(accounts).findByEmail(any(), anyString());
         doReturn(Optional.of(aanya)).when(accounts).findByEmail(Role.AAPTA, "aapta@ksiracare.com");
         doReturn(Optional.of(meera)).when(accounts).findByEmail(Role.ADMIN, "admin@ksiracare.com");
-        when(jwtService.issue(any())).thenReturn("signed-token");
+        when(jwtService.issue(any(), anyInt())).thenReturn("signed-token");
     }
 
     private static LoginRequestDto request(String email, String password) {
@@ -69,7 +70,7 @@ class AuthServiceTest {
         AuthService.LoginResult result = authService.login(Role.ADMIN, request("admin@ksiracare.com", "admin-password"));
 
         assertThat(result.principal()).isInstanceOf(AdminPrincipal.class);
-        verify(jwtService).issue(result.principal());
+        verify(jwtService).issue(result.principal(), 0);
     }
 
     @Test
@@ -109,6 +110,6 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.login(Role.ADMIN, request("admin@ksiracare.com", "admin-password")))
                 .isInstanceOf(TooManyLoginAttemptsException.class);
-        verify(jwtService, never()).issue(any());
+        verify(jwtService, never()).issue(any(), anyInt());
     }
 }

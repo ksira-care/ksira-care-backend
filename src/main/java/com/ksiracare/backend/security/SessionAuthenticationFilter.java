@@ -14,8 +14,9 @@ import java.util.List;
 
 /**
  * Signs the request in from one role's session cookie. A missing, invalid or expired token, a
- * token issued for another role, or an account that has since been deactivated simply leaves
- * the request anonymous; protected endpoints then answer 401. One instance per security chain
+ * token issued for another role, an account that has since been deactivated, or a session the
+ * account has since ended (e.g. by changing its password) simply leaves the request anonymous;
+ * protected endpoints then answer 401. One instance per security chain
  * (see SecurityConfig), never registered as a servlet filter.
  */
 public class SessionAuthenticationFilter extends OncePerRequestFilter {
@@ -40,16 +41,17 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         sessionCookies.read(role, request)
                 .flatMap(jwtService::verify)
-                .filter(principal -> principal.role() == role)
-                .filter(this::isStillActive)
-                .ifPresent(principal -> SecurityContextHolder.getContext().setAuthentication(
+                .filter(session -> session.principal().role() == role)
+                .filter(this::isCurrent)
+                .ifPresent(session -> SecurityContextHolder.getContext().setAuthentication(
                         UsernamePasswordAuthenticationToken.authenticated(
-                                principal, null, List.of(new SimpleGrantedAuthority(role.authority())))));
+                                session.principal(), null, List.of(new SimpleGrantedAuthority(role.authority())))));
         chain.doFilter(request, response);
     }
 
-    /** Deactivating an account takes effect immediately, not when its session expires. */
-    private boolean isStillActive(SessionPrincipal principal) {
-        return accounts.isActive(principal.role(), principal.accountId());
+    /** Deactivating an account, or ending its sessions, takes effect immediately — not when the token expires. */
+    private boolean isCurrent(JwtService.VerifiedSession session) {
+        SessionPrincipal principal = session.principal();
+        return accounts.isSessionCurrent(principal.role(), principal.accountId(), session.sessionVersion());
     }
 }

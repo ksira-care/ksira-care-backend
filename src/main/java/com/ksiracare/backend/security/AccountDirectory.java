@@ -26,9 +26,12 @@ public class AccountDirectory {
         return accounts(role).findById(accountId);
     }
 
-    /** Whether the account still exists and hasn't been deactivated since the session began. */
-    public boolean isActive(Role role, UUID accountId) {
-        return accounts(role).existsByIdAndActiveTrue(accountId);
+    /**
+     * Whether a session issued under {@code sessionVersion} still stands: the account exists, is
+     * active, and hasn't ended its sessions since (e.g. by changing its password).
+     */
+    public boolean isSessionCurrent(Role role, UUID accountId, int sessionVersion) {
+        return accounts(role).existsByIdAndActiveTrueAndSessionVersion(accountId, sessionVersion);
     }
 
     // A switch rather than a map: adding a Role doesn't compile until it is wired up here.

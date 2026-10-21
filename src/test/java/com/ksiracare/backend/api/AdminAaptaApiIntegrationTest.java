@@ -1,11 +1,13 @@
 package com.ksiracare.backend.api;
 
 import com.ksiracare.backend.entity.Aapta;
+import com.ksiracare.backend.entity.Admin;
 import com.ksiracare.backend.entity.Booking;
 import com.ksiracare.backend.entity.Slot;
 import com.ksiracare.backend.enums.BookingStatus;
 import com.ksiracare.backend.enums.SlotStatus;
 import com.ksiracare.backend.repository.AaptaRepository;
+import com.ksiracare.backend.repository.AdminRepository;
 import com.ksiracare.backend.repository.BookingRepository;
 import com.ksiracare.backend.repository.SlotRepository;
 import com.ksiracare.backend.time.PortalCalendar;
@@ -35,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminAaptaApiIntegrationTest extends ApiTestSupport {
 
     @Autowired private AaptaRepository aaptaRepository;
+    @Autowired private AdminRepository adminRepository;
     @Autowired private SlotRepository slotRepository;
     @Autowired private BookingRepository bookingRepository;
     @Autowired private PasswordEncoder passwordEncoder;
@@ -159,6 +162,37 @@ class AdminAaptaApiIntegrationTest extends ApiTestSupport {
 
         assertThat(signIn(neha.getEmail(), DEMO_PASSWORD).getResponse().getStatus()).isEqualTo(401);
         assertThat(signIn(neha.getEmail(), "brand-new-pass").getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void changingAPasswordSignsOutEverywhereExceptThisDevice() throws Exception {
+        Aapta neha = aapta("Neha", "Kapoor");
+        Cookie phone = session(neha.getEmail());
+        Cookie laptop = session(neha.getEmail());
+
+        Cookie refreshed = changePassword("/api/auth/password", laptop, DEMO_PASSWORD, "brand-new-pass")
+                .andExpect(status().isNoContent())
+                .andReturn().getResponse().getCookie(COOKIE);
+
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(phone)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(laptop)).andExpect(status().isUnauthorized());
+        assertThat(refreshed).isNotNull();
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(refreshed)).andExpect(status().isOk());
+    }
+
+    @Test
+    void adminsCanChangeTheirOwnPasswordTheSameWay() throws Exception {
+        Admin priya = adminRepository.save(new Admin("Priya", "Nair", unique("Priya"), passwordEncoder.encode(DEMO_PASSWORD)));
+        Cookie other = adminSignIn(priya.getEmail(), DEMO_PASSWORD).getResponse().getCookie(ADMIN_COOKIE);
+        Cookie current = adminSignIn(priya.getEmail(), DEMO_PASSWORD).getResponse().getCookie(ADMIN_COOKIE);
+
+        Cookie refreshed = changePassword("/api/admin/auth/password", current, DEMO_PASSWORD, "brand-new-pass")
+                .andExpect(status().isNoContent())
+                .andReturn().getResponse().getCookie(ADMIN_COOKIE);
+
+        mvc.perform(get("/api/admin/me").contextPath("/api").cookie(other)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/me").contextPath("/api").cookie(refreshed)).andExpect(status().isOk());
+        assertThat(adminSignIn(priya.getEmail(), "brand-new-pass").getResponse().getStatus()).isEqualTo(200);
     }
 
     @Test
