@@ -145,7 +145,7 @@ Request bodies and sample responses for every endpoint: [docs/API.md](docs/API.m
 | `POST` | `/auth/login` | aaptas and admins: `{email, password}` → `{accountId, email, role, firstName, middleName, lastName}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/auth/logout` | 204, clears the cookie |
 | `GET`  | `/auth/session` | `{accountId, email, role, firstName, middleName, lastName}` of whoever is signed in; 401 if nobody |
-| `GET`  | `/languages` | either role: `{languages: [{code, name}]}` — for the language pickers |
+| `GET`  | `/languages` | no sign-in needed: `{languages: [{code, name}]}` — for every language picker, including the website's booking form |
 | `POST` | `/auth/password` | either role: `{currentPassword, newPassword}` → 204 + a fresh session cookie; signs out every other device; `422 CURRENT_PASSWORD_INCORRECT` if the current one is wrong |
 | `GET`  | `/aaptas/me` | profile; also the "am I signed in?" check (401 if not) |
 | `PATCH`| `/aaptas/me` | edit own profile — name, phone, date of birth, address, languages (same body as the admin edit) |

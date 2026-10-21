@@ -26,9 +26,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * Stateless, cookie-based security. Everyone signs in at {@code /auth/login}; the role in the
  * session token decides what it opens:
  * <ul>
- *   <li>{@code /public/**} — booking from the website, no sign-in;</li>
+ *   <li>{@code /public/**}, {@code GET /languages} — the website's booking form, no sign-in;</li>
  *   <li>{@code /admin/**} — the admin console, admins only;</li>
- *   <li>{@code /auth/session}, {@code /auth/password}, {@code /languages} — any signed-in account;</li>
+ *   <li>{@code /auth/session}, {@code /auth/password} — any signed-in account;</li>
  *   <li>everything else — the aapta portal, aaptas only.</li>
  * </ul>
  * Signed in but the wrong role is 403; not signed in is 401. CSRF tokens aren't used: the cookie
@@ -50,11 +50,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/logout").permitAll()
                         // The website's booking form; clients have no accounts.
                         .requestMatchers("/public/**").permitAll()
+                        // The language list feeds the website's booking form too; it is not private.
+                        .requestMatchers(HttpMethod.GET, "/languages").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         // Only reachable when springdoc is enabled (development).
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/auth/**", "/languages").authenticated()
+                        .requestMatchers("/auth/**").authenticated()
                         .requestMatchers("/admin/**").hasRole(Role.ADMIN.name())
                         .anyRequest().hasRole(Role.AAPTA.name()))
                 .csrf(AbstractHttpConfigurer::disable)
