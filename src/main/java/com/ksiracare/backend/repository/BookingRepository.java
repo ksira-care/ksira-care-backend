@@ -85,4 +85,13 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             WHERE b.startTime >= :from AND b.startTime < :to
             """)
     List<Booking> findAllocatedStartingBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** An aapta's bookings with the given status that start after {@code after}, with their hour loaded. */
+    @Query("""
+            SELECT b FROM Booking b LEFT JOIN FETCH b.slot
+            WHERE b.aapta.id = :aaptaId AND b.status = :status AND b.startTime > :after
+            """)
+    List<Booking> findForAaptaWithStatusStartingAfter(@Param("aaptaId") UUID aaptaId,
+                                                      @Param("status") BookingStatus status,
+                                                      @Param("after") LocalDateTime after);
 }

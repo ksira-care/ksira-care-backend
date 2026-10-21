@@ -22,6 +22,10 @@ public class AccountDirectory {
         return accounts(role).findByEmailIgnoreCase(email);
     }
 
+    public Optional<? extends Account> findById(Role role, UUID accountId) {
+        return accounts(role).findById(accountId);
+    }
+
     /** Whether the account still exists and hasn't been deactivated since the session began. */
     public boolean isActive(Role role, UUID accountId) {
         return accounts(role).existsByIdAndActiveTrue(accountId);

@@ -137,6 +137,7 @@ Deactivate the same way: `UPDATE admins SET is_active = false WHERE email = '…
 |--------|------|---|
 | `POST` | `/auth/login` | `{email, password}` → `{aaptaId, email}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/auth/logout` | 204, clears the cookie |
+| `POST` | `/auth/password` | `{currentPassword, newPassword}` → 204; `422 CURRENT_PASSWORD_INCORRECT` if the current one is wrong |
 | `GET`  | `/aaptas/me` | profile; also the "am I signed in?" check (401 if not) |
 | `GET`  | `/aaptas/me/dashboard-summary` | `{completedThisMonth, completedAllTime, activeSince}` |
 | `GET`  | `/aaptas/me/slots?startTime&endTime` | `{slots: [{id, time, status}]}` — every session hour in the range |
@@ -150,12 +151,17 @@ Admin console:
 |--------|------|---|
 | `POST` | `/admin/auth/login` | `{email, password}` → `{adminId, email}` + httpOnly `ksira_admin_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/admin/auth/logout` | 204, clears the admin cookie |
+| `POST` | `/admin/auth/password` | `{currentPassword, newPassword}` → 204, the admin's own password |
 | `GET`  | `/admin/me` | `{adminId, email, firstName, middleName, lastName}`; also the "am I signed in?" check |
 | `GET`  | `/admin/bookings?date=YYYY-MM-DD` | `{date, bookings: [...]}` — every booking that day (IST), cancelled ones included, with `editable`/`editableFrom` worked out by the server |
 | `GET`  | `/admin/bookings/{id}/form` | the website booking form as the client filled it: `{name, email, notes, consent, submittedAt}` |
 | `GET`  | `/admin/bookings/{id}/aapta-options` | `{aaptas: [...]}` — the current aapta, then active aaptas who opened that hour |
 | `PATCH`| `/admin/bookings/{id}` | `{aaptaId, bccEmailSent, version}` — "Add" / "Update"; answers with the updated row |
 | `POST` | `/admin/bookings/{id}/cancel` | `{reason, version}` — calls the session off; answers with the updated row |
+| `GET`  | `/admin/aaptas` | `{aaptas: [{aaptaId, firstName, middleName, lastName, email, languages}]}` — everyone who can sign in, by name |
+| `POST` | `/admin/aaptas` | `{firstName, middleName?, lastName, email, languages: ["en", …], password}` → 201; `409 EMAIL_TAKEN` |
+| `DELETE`| `/admin/aaptas/{id}` | removes the aapta → `{aaptaId, unallocatedBookings}` |
+| `GET`  | `/admin/languages` | `{languages: [{code, name}]}` — the languages aaptas can be given |
 | `GET`  | `/admin/availability?date=YYYY-MM-DD` | view-only grid for any date: `{date, hours: [{time, openAaptas}], aaptas: [{aaptaId, firstName, lastName, slots: [{time, status, booking}]}]}` — each aapta's `slots` line up with `hours`; `booking` (`{bookingId, client}`) is set on BOOKED cells |
 
 Booking rules in the admin console:
@@ -174,6 +180,13 @@ Booking rules in the admin console:
   clears it back to pending.
 - **History:** every change is stored in `booking_events` (who, when, from → to); the day view
   shows the latest "was …" aapta.
+- **Adding an aapta:** the admin sets their login (email, stored lower-case and unique) and a
+  first password (8–72 characters) and shares it with them; the aapta can change it with
+  `POST /auth/password`. Languages are ISO 639-1 codes — the UI formats them for display.
+- **Removing an aapta** is a soft delete, so their bookings and history stay intact: the
+  account is deactivated (login and any open session stop at once), their upcoming sessions go
+  back to unallocated (shown with "was …"), and their future open hours are closed. Their email
+  can't be reused for a new account.
 - **Concurrent edits:** send back the row's `version`; if another admin saved first, the answer
   is `409 CONCURRENT_UPDATE`.
 

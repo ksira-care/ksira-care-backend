@@ -15,4 +15,12 @@ public interface AaptaRepository extends AccountRepository<Aapta> {
     Optional<Aapta> findWithLanguagesById(@Param("id") UUID id);
 
     List<Aapta> findAllByActiveTrue();
+
+    /** The roster: everyone who can sign in, by name, with languages loaded. */
+    @Query("""
+            SELECT DISTINCT a FROM Aapta a LEFT JOIN FETCH a.languages
+            WHERE a.active = TRUE
+            ORDER BY a.firstName ASC, a.lastName ASC
+            """)
+    List<Aapta> findActiveWithLanguages();
 }

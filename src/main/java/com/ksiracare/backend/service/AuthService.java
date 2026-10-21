@@ -1,9 +1,12 @@
 package com.ksiracare.backend.service;
 
+import com.ksiracare.backend.dto.request.ChangePasswordRequestDto;
 import com.ksiracare.backend.dto.request.LoginRequestDto;
 import com.ksiracare.backend.entity.Account;
 import com.ksiracare.backend.exception.AccountDisabledException;
+import com.ksiracare.backend.exception.CurrentPasswordIncorrectException;
 import com.ksiracare.backend.exception.InvalidCredentialsException;
+import com.ksiracare.backend.exception.ResourceNotFoundException;
 import com.ksiracare.backend.exception.TooManyLoginAttemptsException;
 import com.ksiracare.backend.security.AccountDirectory;
 import com.ksiracare.backend.security.JwtService;
@@ -48,6 +51,17 @@ public class AuthService {
     }
 
     public record LoginResult(SessionPrincipal principal, String sessionToken) {
+    }
+
+    /** Changes the signed-in account's own password; the current one must be given. */
+    @Transactional
+    public void changePassword(SessionPrincipal me, ChangePasswordRequestDto request) {
+        Account account = accounts.findById(me.role(), me.accountId())
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found."));
+        if (!passwordEncoder.matches(request.currentPassword(), account.getPassword())) {
+            throw new CurrentPasswordIncorrectException("Your current password is incorrect.");
+        }
+        account.setPassword(passwordEncoder.encode(request.newPassword()));
     }
 
     @Transactional(readOnly = true)

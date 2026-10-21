@@ -138,6 +138,22 @@ public class Booking {
     }
 
     /**
+     * Takes the session away from its aapta (e.g. they were removed): it waits for an admin to
+     * allocate someone new, and any outcome is cleared. The BCC flag is left alone.
+     *
+     * @return the hour it held, for the caller to decide what happens to it; null if none
+     */
+    public Slot unallocate() {
+        Slot held = this.slot;
+        this.slot = null;
+        this.aapta = null;
+        this.assignedAt = null;
+        this.status = BookingStatus.PENDING;
+        this.markedAt = null;
+        return held;
+    }
+
+    /**
      * Calls the session off. The aapta's hour opens again for other bookings; who held the
      * booking is kept for the record. Callers check that cancelling is allowed.
      */

@@ -64,6 +64,11 @@ public class Slot {
         this.status = SlotStatus.BOOKED;
     }
 
+    /** The aapta won't be working this hour. */
+    public void close() {
+        this.status = SlotStatus.AAPTA_UNAVAILABLE;
+    }
+
     /** The booking moved elsewhere; the aapta's hour is open again. */
     public void release() {
         this.status = SlotStatus.AAPTA_AVAILABLE;

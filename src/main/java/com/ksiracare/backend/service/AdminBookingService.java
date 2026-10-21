@@ -21,7 +21,6 @@ import com.ksiracare.backend.repository.BookingEventRepository;
 import com.ksiracare.backend.repository.BookingRepository;
 import com.ksiracare.backend.repository.SlotRepository;
 import com.ksiracare.backend.security.AdminPrincipal;
-import com.ksiracare.backend.security.Role;
 import com.ksiracare.backend.time.PortalCalendar;
 import com.ksiracare.backend.time.UtcRange;
 import lombok.RequiredArgsConstructor;
@@ -51,11 +50,12 @@ public class AdminBookingService {
 
     /** The history a day-view row shows. */
     private static final Set<BookingEventType> ROW_HISTORY =
-            EnumSet.of(BookingEventType.AAPTA_REALLOCATED, BookingEventType.BOOKING_CANCELLED);
+            EnumSet.of(BookingEventType.AAPTA_REALLOCATED, BookingEventType.AAPTA_UNALLOCATED, BookingEventType.BOOKING_CANCELLED);
 
     private final BookingRepository bookingRepository;
     private final SlotRepository slotRepository;
     private final BookingEventRepository eventRepository;
+    private final BookingHistory history;
     private final AdminBookingPolicy policy;
     private final AdminBookingMapper mapper;
     private final PortalCalendar calendar;
@@ -104,12 +104,12 @@ public class AdminBookingService {
         if (current == null || !current.getId().equals(request.aaptaId())) {
             Slot slot = openSlot(request.aaptaId(), booking.getStartTime());
             booking.allocateTo(slot, now);
-            record(booking, current == null ? BookingEventType.AAPTA_ALLOCATED : BookingEventType.AAPTA_REALLOCATED,
+            history.record(booking, current == null ? BookingEventType.AAPTA_ALLOCATED : BookingEventType.AAPTA_REALLOCATED,
                     admin, current, slot.getAapta(), now, null);
         }
         if (booking.isBccEmailSent() != request.bccEmailSent()) {
             booking.setBccEmailSent(request.bccEmailSent());
-            record(booking, request.bccEmailSent() ? BookingEventType.BCC_EMAIL_MARKED_SENT : BookingEventType.BCC_EMAIL_MARKED_NOT_SENT,
+            history.record(booking, request.bccEmailSent() ? BookingEventType.BCC_EMAIL_MARKED_SENT : BookingEventType.BCC_EMAIL_MARKED_NOT_SENT,
                     admin, null, booking.getAapta(), now, null);
         }
         return saveAndShow(booking, now);
@@ -127,7 +127,7 @@ public class AdminBookingService {
 
         LocalDateTime now = calendar.nowUtc();
         booking.cancel();
-        record(booking, BookingEventType.BOOKING_CANCELLED, admin, null, booking.getAapta(), now, request.reason().trim());
+        history.record(booking, BookingEventType.BOOKING_CANCELLED, admin, null, booking.getAapta(), now, request.reason().trim());
         return saveAndShow(booking, now);
     }
 
@@ -149,24 +149,10 @@ public class AdminBookingService {
                 .orElseThrow(() -> new AaptaNotAvailableException("That aapta hasn't opened this hour, or it's no longer free."));
     }
 
-    private void record(Booking booking, BookingEventType type, AdminPrincipal admin,
-                        Aapta previousAapta, Aapta aapta, LocalDateTime now, String note) {
-        eventRepository.save(BookingEvent.builder()
-                .booking(booking)
-                .type(type)
-                .actorRole(Role.ADMIN)
-                .actorId(admin.adminId())
-                .previousAapta(previousAapta)
-                .aapta(aapta)
-                .occurredAt(now)
-                .note(note)
-                .build());
-    }
-
     /**
      * What a row shows from a booking's history.
      *
-     * @param previousAapta who held it before its latest reallocation ("Was Aanya M.")
+     * @param previousAapta who held it before it was last moved or unallocated ("Was Aanya M.")
      * @param cancelReason  why it was cancelled
      */
     private record History(Aapta previousAapta, String cancelReason) {
@@ -181,13 +167,13 @@ public class AdminBookingService {
         }
         // Newest first, so the first event of each type seen per booking is its latest.
         for (BookingEvent event : eventRepository.findForBookings(bookingIds, ROW_HISTORY)) {
-            History history = histories.getOrDefault(event.getBooking().getId(), History.NONE);
+            History seen = histories.getOrDefault(event.getBooking().getId(), History.NONE);
             histories.put(event.getBooking().getId(), switch (event.getType()) {
-                case AAPTA_REALLOCATED -> history.previousAapta() != null ? history
-                        : new History(event.getPreviousAapta(), history.cancelReason());
-                case BOOKING_CANCELLED -> history.cancelReason() != null ? history
-                        : new History(history.previousAapta(), event.getNote());
-                default -> history;
+                case AAPTA_REALLOCATED, AAPTA_UNALLOCATED -> seen.previousAapta() != null ? seen
+                        : new History(event.getPreviousAapta(), seen.cancelReason());
+                case BOOKING_CANCELLED -> seen.cancelReason() != null ? seen
+                        : new History(seen.previousAapta(), event.getNote());
+                default -> seen;
             });
         }
         return histories;
