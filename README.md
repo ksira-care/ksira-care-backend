@@ -1,6 +1,6 @@
 # Ksira Care — backend
 
-Spring Boot API for the therapist portal. Everything is served under `/api`
+Spring Boot API for the aapta portal. Everything is served under `/api`
 (e.g. `https://ksiracare.com/api/...` behind the website's proxy).
 
 ## Run locally
@@ -16,7 +16,7 @@ Demo accounts (dev profile only):
 
 | Email                     | Password      |                      |
 |---------------------------|---------------|----------------------|
-| `therapist@ksiracare.com` | `password123` | active, with bookings and open hours |
+| `aapta@ksiracare.com` | `password123` | active, with bookings and open hours |
 | `disabled@ksiracare.com`  | `password123` | deactivated          |
 
 To use the UI against this backend, run `npm run start:api` in the UI repo — it proxies
@@ -67,30 +67,30 @@ blocks third-party cookies) and no CORS is needed. Pick **Singapore** for both R
 The free Render instance sleeps after ~15 minutes idle; the first request then takes up to a
 minute.
 
-### Adding a therapist (admin)
+### Adding an aapta (admin)
 
 Run in Neon's SQL editor. Passwords are stored as bcrypt hashes, never plain text:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- once
 
-INSERT INTO therapists (id, first_name, last_name, email, password, phone, created_at, updated_at)
+INSERT INTO aaptas (id, first_name, last_name, email, password, phone, created_at, updated_at)
 VALUES (gen_random_uuid(), 'Aanya', 'Mehta', 'aanya@ksiracare.com',
         crypt('<temporary password>', gen_salt('bf', 10)), '+91 98xxxxxxx', now(), now());
 
 -- Languages they speak (codes from the languages table: ENGLISH, HINDI, MARATHI, KANNADA)
-INSERT INTO therapist_languages (therapist_id, language_id)
-SELECT t.id, l.id FROM therapists t, languages l
+INSERT INTO aapta_languages (aapta_id, language_id)
+SELECT t.id, l.id FROM aaptas t, languages l
 WHERE t.email = 'aanya@ksiracare.com' AND l.code IN ('ENGLISH', 'HINDI');
 ```
 
-To deactivate someone: `UPDATE therapists SET is_active = false WHERE email = '…';` — their
+To deactivate someone: `UPDATE aaptas SET is_active = false WHERE email = '…';` — their
 current session stops working on the next request.
 
 ## Conventions
 
-- **The therapist always comes from the session cookie**, never from the URL — so nobody
-  can read or change another therapist's data. Someone else's booking answers 404.
+- **The aapta always comes from the session cookie**, never from the URL — so nobody
+  can read or change another aapta's data. Someone else's booking answers 404.
 - **Times** are stored in UTC and exchanged as epoch milliseconds. Calendar rules ("today",
   "this month", opening hours) use the portal time zone via `PortalCalendar`.
 - **Ranges** are start-inclusive, end-exclusive.
@@ -101,12 +101,12 @@ current session stops working on the next request.
 
 | Method | Path | |
 |--------|------|---|
-| `POST` | `/auth/login` | `{email, password}` → `{therapistId, email}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
+| `POST` | `/auth/login` | `{email, password}` → `{aaptaId, email}` + httpOnly `ksira_session` cookie (SameSite=Strict, 2 h) |
 | `POST` | `/auth/logout` | 204, clears the cookie |
-| `GET`  | `/therapists/me` | profile; also the "am I signed in?" check (401 if not) |
-| `GET`  | `/therapists/me/dashboard-summary` | `{completedThisMonth, completedAllTime, activeSince}` |
-| `GET`  | `/therapists/me/slots?startTime&endTime` | every session hour in the range |
-| `POST` | `/therapists/me/slots?startTime&endTime` | `[{id, time, status}]` — opens/closes only the hours sent |
+| `GET`  | `/aaptas/me` | profile; also the "am I signed in?" check (401 if not) |
+| `GET`  | `/aaptas/me/dashboard-summary` | `{completedThisMonth, completedAllTime, activeSince}` |
+| `GET`  | `/aaptas/me/slots?startTime&endTime` | every session hour in the range |
+| `POST` | `/aaptas/me/slots?startTime&endTime` | `[{id, time, status}]` — opens/closes only the hours sent |
 | `GET`  | `/bookings?startTime&endTime` | `{bookings: [...]}`, cancelled ones excluded |
 | `PATCH`| `/bookings/{id}` | `{bookingStatus}`: `COMPLETED` / `CLIENT_NO_SHOW` once started; `PENDING` undoes a mark the same day |
 

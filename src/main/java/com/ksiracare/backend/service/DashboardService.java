@@ -20,12 +20,12 @@ public class DashboardService {
     private final PortalCalendar calendar;
 
     @Transactional(readOnly = true)
-    public DashboardSummaryDto getSummary(UUID therapistId) {
+    public DashboardSummaryDto getSummary(UUID aaptaId) {
         UtcRange thisMonth = calendar.monthOf(calendar.today());
         long completedThisMonth = bookingRepository.countWithStatusBetween(
-                therapistId, BookingStatus.COMPLETED, thisMonth.start(), thisMonth.end());
-        long completedAllTime = bookingRepository.countWithStatus(therapistId, BookingStatus.COMPLETED);
-        LocalDate activeSince = bookingRepository.findEarliestStartWithStatus(therapistId, BookingStatus.COMPLETED)
+                aaptaId, BookingStatus.COMPLETED, thisMonth.start(), thisMonth.end());
+        long completedAllTime = bookingRepository.countWithStatus(aaptaId, BookingStatus.COMPLETED);
+        LocalDate activeSince = bookingRepository.findEarliestStartWithStatus(aaptaId, BookingStatus.COMPLETED)
                 .map(calendar::dateOf)
                 .orElse(null);
         return new DashboardSummaryDto(completedThisMonth, completedAllTime, activeSince);

@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 
 public enum SlotStatus {
     BOOKED,
-    THERAPIST_AVAILABLE,
-    THERAPIST_UNAVAILABLE;
+    AAPTA_AVAILABLE,
+    AAPTA_UNAVAILABLE;
 
     @JsonCreator
     public static SlotStatus fromValue(String value) {
@@ -13,8 +13,8 @@ public enum SlotStatus {
             return null;
         }
         String normalized = value.trim().toUpperCase();
-        if ("THERAPIST_UNVAILABLE".equals(normalized)) {
-            return THERAPIST_UNAVAILABLE;
+        if ("AAPTA_UNVAILABLE".equals(normalized)) {
+            return AAPTA_UNAVAILABLE;
         }
         return SlotStatus.valueOf(normalized);
     }

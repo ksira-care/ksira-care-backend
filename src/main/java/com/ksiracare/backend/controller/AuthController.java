@@ -29,7 +29,7 @@ public class AuthController {
         AuthService.LoginResult result = authService.login(request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, sessionCookies.issue(result.sessionToken(), jwtService.ttl()).toString())
-                .body(new LoginResponseDto(result.therapistId(), result.email()));
+                .body(new LoginResponseDto(result.aaptaId(), result.email()));
     }
 
     /** Ends the session by clearing the cookie. Always succeeds, even if already signed out. */

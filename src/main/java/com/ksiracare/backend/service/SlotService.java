@@ -10,8 +10,8 @@ import java.util.UUID;
 public interface SlotService {
 
     /** Every session hour in the range; hours with no record are reported as unavailable. */
-    List<SlotResponseDto> getSlots(UUID therapistId, UtcRange range);
+    List<SlotResponseDto> getSlots(UUID aaptaId, UtcRange range);
 
     /** Opens or closes only the hours sent; other hours are left as they are. */
-    List<SlotResponseDto> saveSlots(UUID therapistId, UtcRange range, List<SlotRequestDto> changes);
+    List<SlotResponseDto> saveSlots(UUID aaptaId, UtcRange range, List<SlotRequestDto> changes);
 }

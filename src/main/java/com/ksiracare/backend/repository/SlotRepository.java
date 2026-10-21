@@ -13,14 +13,14 @@ import java.util.UUID;
 @Repository
 public interface SlotRepository extends JpaRepository<Slot, UUID> {
 
-    /** A therapist's slots in [from, to), stored UTC. */
+    /** An aapta's slots in [from, to), stored UTC. */
     @Query("""
             SELECT s FROM Slot s
-            WHERE s.therapist.id = :therapistId AND s.slotTime >= :from AND s.slotTime < :to
+            WHERE s.aapta.id = :aaptaId AND s.slotTime >= :from AND s.slotTime < :to
             ORDER BY s.slotTime ASC
             """)
-    List<Slot> findForTherapist(
-            @Param("therapistId") UUID therapistId,
+    List<Slot> findForAapta(
+            @Param("aaptaId") UUID aaptaId,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );

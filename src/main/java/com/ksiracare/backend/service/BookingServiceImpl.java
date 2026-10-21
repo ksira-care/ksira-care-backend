@@ -22,8 +22,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BookingServiceImpl implements BookingService {
 
-    /** Therapists don't see cancelled sessions. */
-    private static final Set<BookingStatus> HIDDEN_FROM_THERAPISTS = Set.of(BookingStatus.CANCELLED);
+    /** Aaptas don't see cancelled sessions. */
+    private static final Set<BookingStatus> HIDDEN_FROM_AAPTAS = Set.of(BookingStatus.CANCELLED);
 
     private final BookingRepository bookingRepository;
     private final BookingMapper bookingMapper;
@@ -32,20 +32,20 @@ public class BookingServiceImpl implements BookingService {
 
     @Override
     @Transactional(readOnly = true)
-    public BookingsResponseDto getBookings(UUID therapistId, UtcRange range) {
+    public BookingsResponseDto getBookings(UUID aaptaId, UtcRange range) {
         return new BookingsResponseDto(bookingMapper.toItems(
-                bookingRepository.findForTherapist(therapistId, range.start(), range.end(), HIDDEN_FROM_THERAPISTS)));
+                bookingRepository.findForAapta(aaptaId, range.start(), range.end(), HIDDEN_FROM_AAPTAS)));
     }
 
     @Override
     @Transactional
-    public BookingItemDto updateStatus(UUID therapistId, UUID bookingId, BookingStatus target) {
+    public BookingItemDto updateStatus(UUID aaptaId, UUID bookingId, BookingStatus target) {
         // Someone else's booking is reported as "not found", so its existence isn't revealed.
-        Booking booking = bookingRepository.findOwnedBy(bookingId, therapistId)
+        Booking booking = bookingRepository.findOwnedBy(bookingId, aaptaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found."));
 
         LocalDateTime now = calendar.nowUtc();
-        statusPolicy.checkTherapistChange(booking, target, now);
+        statusPolicy.checkAaptaChange(booking, target, now);
 
         booking.setStatus(target);
         booking.setMarkedAt(target == BookingStatus.PENDING ? null : now);

@@ -3,7 +3,7 @@ package com.ksiracare.backend.service;
 import com.ksiracare.backend.dto.request.SlotRequestDto;
 import com.ksiracare.backend.dto.response.SlotResponseDto;
 import com.ksiracare.backend.entity.Slot;
-import com.ksiracare.backend.entity.Therapist;
+import com.ksiracare.backend.entity.Aapta;
 import com.ksiracare.backend.enums.SlotStatus;
 import com.ksiracare.backend.exception.ApiException;
 import com.ksiracare.backend.exception.ErrorCode;
@@ -12,7 +12,7 @@ import com.ksiracare.backend.exception.SlotConflictException;
 import com.ksiracare.backend.mapper.SlotMapper;
 import com.ksiracare.backend.policy.SlotSchedulePolicy;
 import com.ksiracare.backend.repository.SlotRepository;
-import com.ksiracare.backend.repository.TherapistRepository;
+import com.ksiracare.backend.repository.AaptaRepository;
 import com.ksiracare.backend.time.EpochTime;
 import com.ksiracare.backend.time.PortalCalendar;
 import com.ksiracare.backend.time.UtcRange;
@@ -33,11 +33,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SlotServiceImpl implements SlotService {
 
-    /** Therapists open and close hours; only bookings make an hour BOOKED. */
-    private static final Set<SlotStatus> THERAPIST_SETTABLE =
-            Set.of(SlotStatus.THERAPIST_AVAILABLE, SlotStatus.THERAPIST_UNAVAILABLE);
+    /** Aaptas open and close hours; only bookings make an hour BOOKED. */
+    private static final Set<SlotStatus> AAPTA_SETTABLE =
+            Set.of(SlotStatus.AAPTA_AVAILABLE, SlotStatus.AAPTA_UNAVAILABLE);
 
-    private final TherapistRepository therapistRepository;
+    private final AaptaRepository aaptaRepository;
     private final SlotRepository slotRepository;
     private final SlotSchedulePolicy schedulePolicy;
     private final SlotMapper slotMapper;
@@ -45,31 +45,31 @@ public class SlotServiceImpl implements SlotService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<SlotResponseDto> getSlots(UUID therapistId, UtcRange range) {
-        Map<LocalDateTime, Slot> stored = storedSlots(therapistId, range);
+    public List<SlotResponseDto> getSlots(UUID aaptaId, UtcRange range) {
+        Map<LocalDateTime, Slot> stored = storedSlots(aaptaId, range);
         return schedulePolicy.slotStartsWithin(range).stream()
                 .map(start -> stored.containsKey(start)
                         ? slotMapper.toResponse(stored.get(start))
-                        : new SlotResponseDto(null, EpochTime.toMillis(start), SlotStatus.THERAPIST_UNAVAILABLE))
+                        : new SlotResponseDto(null, EpochTime.toMillis(start), SlotStatus.AAPTA_UNAVAILABLE))
                 .toList();
     }
 
     @Override
     @Transactional
-    public List<SlotResponseDto> saveSlots(UUID therapistId, UtcRange range, List<SlotRequestDto> changes) {
+    public List<SlotResponseDto> saveSlots(UUID aaptaId, UtcRange range, List<SlotRequestDto> changes) {
         if (!changes.isEmpty()) {
             LocalDateTime now = calendar.nowUtc();
             changes.forEach(change -> validate(change, range, now));
             rejectDuplicates(changes);
 
-            Therapist therapist = therapistRepository.getReferenceById(therapistId);
-            Map<LocalDateTime, Slot> stored = storedSlots(therapistId, range);
+            Aapta aapta = aaptaRepository.getReferenceById(aaptaId);
+            Map<LocalDateTime, Slot> stored = storedSlots(aaptaId, range);
 
             List<Slot> toSave = changes.stream().map(change -> {
                 LocalDateTime start = EpochTime.toUtc(change.getTime());
                 Slot slot = stored.get(start);
                 if (slot == null) {
-                    return new Slot(therapist, start, change.getStatus());
+                    return new Slot(aapta, start, change.getStatus());
                 }
                 if (slot.getStatus() == SlotStatus.BOOKED) {
                     throw new SlotConflictException("A session is already booked at this time.");
@@ -79,11 +79,11 @@ public class SlotServiceImpl implements SlotService {
             }).toList();
             slotRepository.saveAll(toSave);
         }
-        return getSlots(therapistId, range);
+        return getSlots(aaptaId, range);
     }
 
     private void validate(SlotRequestDto change, UtcRange range, LocalDateTime now) {
-        if (!THERAPIST_SETTABLE.contains(change.getStatus())) {
+        if (!AAPTA_SETTABLE.contains(change.getStatus())) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "Hours can only be opened or closed.");
         }
         LocalDateTime start = EpochTime.toUtc(change.getTime());
@@ -104,8 +104,8 @@ public class SlotServiceImpl implements SlotService {
         }
     }
 
-    private Map<LocalDateTime, Slot> storedSlots(UUID therapistId, UtcRange range) {
-        return slotRepository.findForTherapist(therapistId, range.start(), range.end()).stream()
+    private Map<LocalDateTime, Slot> storedSlots(UUID aaptaId, UtcRange range) {
+        return slotRepository.findForAapta(aaptaId, range.start(), range.end()).stream()
                 .collect(Collectors.toMap(Slot::getSlotTime, Function.identity()));
     }
 }

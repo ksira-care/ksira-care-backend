@@ -20,11 +20,11 @@ import java.util.Set;
 import java.util.UUID;
 
 @Entity
-@Table(name = "therapists")
+@Table(name = "aaptas")
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Therapist {
+public class Aapta {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -59,8 +59,8 @@ public class Therapist {
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-            name = "therapist_languages",
-            joinColumns = @JoinColumn(name = "therapist_id"),
+            name = "aapta_languages",
+            joinColumns = @JoinColumn(name = "aapta_id"),
             inverseJoinColumns = @JoinColumn(name = "language_id")
     )
     private Set<LanguageEntity> languages = new HashSet<>();
@@ -74,8 +74,8 @@ public class Therapist {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
-    /** Therapists are created by admins; {@code passwordHash} must already be BCrypt-encoded. */
-    public Therapist(String firstName, String lastName, String email, String passwordHash) {
+    /** Aaptas are created by admins; {@code passwordHash} must already be BCrypt-encoded. */
+    public Aapta(String firstName, String lastName, String email, String passwordHash) {
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
@@ -85,8 +85,8 @@ public class Therapist {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof Therapist therapist)) return false;
-        return email != null && email.equalsIgnoreCase(therapist.getEmail());
+        if (!(o instanceof Aapta aapta)) return false;
+        return email != null && email.equalsIgnoreCase(aapta.getEmail());
     }
 
     @Override

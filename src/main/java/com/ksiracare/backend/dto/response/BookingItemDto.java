@@ -7,11 +7,11 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * One session as the therapist sees it. All times are epoch milliseconds (UTC).
+ * One session as the aapta sees it. All times are epoch milliseconds (UTC).
  * Customer contact details, country and fees are deliberately not exposed.
  *
  * @param rescheduledFrom the original start, if an admin moved the session
- * @param markedAt        when the therapist marked it, or null while pending
+ * @param markedAt        when the aapta marked it, or null while pending
  */
 public record BookingItemDto(
         UUID bookingId,

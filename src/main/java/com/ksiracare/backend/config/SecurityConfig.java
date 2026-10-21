@@ -1,7 +1,7 @@
 package com.ksiracare.backend.config;
 
 import com.ksiracare.backend.exception.ErrorCode;
-import com.ksiracare.backend.repository.TherapistRepository;
+import com.ksiracare.backend.repository.AaptaRepository;
 import com.ksiracare.backend.security.JwtService;
 import com.ksiracare.backend.security.ProblemAuthenticationEntryPoint;
 import com.ksiracare.backend.security.SessionAuthenticationFilter;
@@ -33,7 +33,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    SessionCookies sessionCookies,
                                                    JwtService jwtService,
-                                                   TherapistRepository therapistRepository) throws Exception {
+                                                   AaptaRepository aaptaRepository) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
@@ -53,7 +53,7 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, denied) ->
                                 new ProblemAuthenticationEntryPoint(ErrorCode.FORBIDDEN, "Not allowed.")
                                         .commence(request, response, null)))
-                .addFilterBefore(new SessionAuthenticationFilter(sessionCookies, jwtService, therapistRepository),
+                .addFilterBefore(new SessionAuthenticationFilter(sessionCookies, jwtService, aaptaRepository),
                         UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

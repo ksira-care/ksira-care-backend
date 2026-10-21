@@ -27,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * through the security filters, the way the portal does.
  */
 @SpringBootTest
-class TherapistPortalApiIntegrationTest {
+class AaptaPortalApiIntegrationTest {
 
     private static final String COOKIE = "ksira_session";
 
@@ -48,12 +48,12 @@ class TherapistPortalApiIntegrationTest {
     }
 
     private Cookie session() throws Exception {
-        return signIn("therapist@ksiracare.com", "password123").getResponse().getCookie(COOKIE);
+        return signIn("aapta@ksiracare.com", "password123").getResponse().getCookie(COOKIE);
     }
 
     @Test
     void signInSetsAnHttpOnlySessionCookieAndNoTokenInTheBody() throws Exception {
-        MvcResult result = signIn("therapist@ksiracare.com", "password123");
+        MvcResult result = signIn("aapta@ksiracare.com", "password123");
 
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         Cookie cookie = result.getResponse().getCookie(COOKIE);
@@ -62,13 +62,13 @@ class TherapistPortalApiIntegrationTest {
         assertThat(cookie.getPath()).isEqualTo("/api");
         assertThat(result.getResponse().getHeader("Set-Cookie")).contains("SameSite=Strict");
         assertThat(result.getResponse().getContentAsString())
-                .contains("\"email\":\"therapist@ksiracare.com\"")
+                .contains("\"email\":\"aapta@ksiracare.com\"")
                 .doesNotContain("token");
     }
 
     @Test
     void wrongPasswordAndUnknownEmailGiveTheSameAnswer() throws Exception {
-        for (String email : new String[]{"therapist@ksiracare.com", "nobody@ksiracare.com"}) {
+        for (String email : new String[]{"aapta@ksiracare.com", "nobody@ksiracare.com"}) {
             MvcResult result = signIn(email, "wrong-password");
             assertThat(result.getResponse().getStatus()).isEqualTo(401);
             assertThat(result.getResponse().getContentAsString()).contains("\"code\":\"INVALID_CREDENTIALS\"");
@@ -85,16 +85,16 @@ class TherapistPortalApiIntegrationTest {
 
     @Test
     void withoutAValidSessionEverythingAnswers401() throws Exception {
-        mvc.perform(get("/api/therapists/me").contextPath("/api"))
+        mvc.perform(get("/api/aaptas/me").contextPath("/api"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
-        mvc.perform(get("/api/therapists/me").contextPath("/api").cookie(new Cookie(COOKIE, "forged.token.value")))
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(new Cookie(COOKIE, "forged.token.value")))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void theProfileComesFromTheSession() throws Exception {
-        mvc.perform(get("/api/therapists/me").contextPath("/api").cookie(session()))
+        mvc.perform(get("/api/aaptas/me").contextPath("/api").cookie(session()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.firstName").value("Aanya"))
                 .andExpect(jsonPath("$.lastName").value("Mehta"))
@@ -105,7 +105,7 @@ class TherapistPortalApiIntegrationTest {
 
     @Test
     void theOldIdBasedProfileEndpointIsGone() throws Exception {
-        mvc.perform(get("/api/therapists/00000000-0000-0000-0000-000000000000").contextPath("/api").cookie(session()))
+        mvc.perform(get("/api/aaptas/00000000-0000-0000-0000-000000000000").contextPath("/api").cookie(session()))
                 .andExpect(status().isNotFound());
     }
 
@@ -121,13 +121,13 @@ class TherapistPortalApiIntegrationTest {
                 .andExpect(jsonPath("$.bookings").isNotEmpty())
                 .andExpect(jsonPath("$.bookings[0].customerName").exists())
                 .andExpect(jsonPath("$.bookings[0].customerCountry").doesNotExist())
-                .andExpect(jsonPath("$.bookings[0].therapistFee").doesNotExist())
-                .andExpect(jsonPath("$.therapistName").doesNotExist());
+                .andExpect(jsonPath("$.bookings[0].aaptaFee").doesNotExist())
+                .andExpect(jsonPath("$.aaptaName").doesNotExist());
     }
 
     @Test
     void theDashboardSummaryIsAvailable() throws Exception {
-        mvc.perform(get("/api/therapists/me/dashboard-summary").contextPath("/api").cookie(session()))
+        mvc.perform(get("/api/aaptas/me/dashboard-summary").contextPath("/api").cookie(session()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.completedAllTime").isNumber())
                 .andExpect(jsonPath("$.completedThisMonth").isNumber());

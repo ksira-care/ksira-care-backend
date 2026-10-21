@@ -6,7 +6,7 @@ public enum BookingStatus {
     PENDING,
     COMPLETED,
     CLIENT_NO_SHOW,
-    THERAPIST_NO_SHOW,
+    AAPTA_NO_SHOW,
     CANCELLED;
 
     @JsonCreator

@@ -17,7 +17,7 @@ import java.util.UUID;
 @Table(
         name = "bookings",
         indexes = {
-                @Index(name = "idx_booking_therapist_start", columnList = "therapist_id, start_time"),
+                @Index(name = "idx_booking_aapta_start", columnList = "aapta_id, start_time"),
                 @Index(name = "idx_booking_status", columnList = "status")
         }
 )
@@ -33,8 +33,8 @@ public class Booking {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "therapist_id", nullable = false)
-    private Therapist therapist;
+    @JoinColumn(name = "aapta_id", nullable = false)
+    private Aapta aapta;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "slot_id")
@@ -77,8 +77,8 @@ public class Booking {
     @Builder.Default
     private BookingStatus status = BookingStatus.PENDING;
 
-    @Column(name = "therapist_fee", precision = 10, scale = 2)
-    private BigDecimal therapistFee;
+    @Column(name = "aapta_fee", precision = 10, scale = 2)
+    private BigDecimal aaptaFee;
 
     // Structured Audit Fields
     @Column(name = "assigned_at")
@@ -94,7 +94,7 @@ public class Booking {
     @Column(name = "reschedule_reason")
     private String rescheduleReason;
 
-    /** When the therapist marked the session complete / client no-show; null while pending. */
+    /** When the aapta marked the session complete / client no-show; null while pending. */
     @Column(name = "marked_at")
     private LocalDateTime markedAt;
 

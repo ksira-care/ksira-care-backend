@@ -20,7 +20,7 @@ import java.util.UUID;
 @Service
 public class JwtService {
 
-    private static final String THERAPIST_ID_CLAIM = "therapistId";
+    private static final String AAPTA_ID_CLAIM = "aaptaId";
     private static final int MIN_KEY_BYTES = 32;
 
     private final SecretKey signingKey;
@@ -33,19 +33,19 @@ public class JwtService {
         this.clock = clock;
     }
 
-    public String issue(UUID therapistId, String email) {
+    public String issue(UUID aaptaId, String email) {
         Instant now = clock.instant();
         return Jwts.builder()
                 .subject(email)
-                .claim(THERAPIST_ID_CLAIM, therapistId.toString())
+                .claim(AAPTA_ID_CLAIM, aaptaId.toString())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(ttl)))
                 .signWith(signingKey)
                 .compact();
     }
 
-    /** The therapist the token belongs to, or empty if it's tampered with, malformed or expired. */
-    public Optional<TherapistPrincipal> verify(String token) {
+    /** The aapta the token belongs to, or empty if it's tampered with, malformed or expired. */
+    public Optional<AaptaPrincipal> verify(String token) {
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(signingKey)
@@ -53,8 +53,12 @@ public class JwtService {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            UUID therapistId = UUID.fromString(claims.get(THERAPIST_ID_CLAIM, String.class));
-            return Optional.of(new TherapistPrincipal(therapistId, claims.getSubject()));
+            // Missing on tokens issued before the claim was renamed; those sessions simply end.
+            String aaptaId = claims.get(AAPTA_ID_CLAIM, String.class);
+            if (aaptaId == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new AaptaPrincipal(UUID.fromString(aaptaId), claims.getSubject()));
         } catch (JwtException | IllegalArgumentException invalid) {
             return Optional.empty();
         }

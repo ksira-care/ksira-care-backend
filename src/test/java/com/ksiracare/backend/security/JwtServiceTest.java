@@ -1,6 +1,8 @@
 package com.ksiracare.backend.security;
 
 import com.ksiracare.backend.config.AuthProperties;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -8,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Base64;
+import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,12 +28,12 @@ class JwtServiceTest {
     }
 
     @Test
-    void aTokenIdentifiesItsTherapist() {
+    void aTokenIdentifiesItsAapta() {
         UUID id = UUID.randomUUID();
         String token = serviceAt(ISSUED, SECRET).issue(id, "aanya@ksiracare.com");
 
         assertThat(serviceAt(ISSUED.plusSeconds(60), SECRET).verify(token))
-                .contains(new TherapistPrincipal(id, "aanya@ksiracare.com"));
+                .contains(new AaptaPrincipal(id, "aanya@ksiracare.com"));
     }
 
     @Test
@@ -48,6 +51,20 @@ class JwtServiceTest {
         assertThat(serviceAt(ISSUED, otherSecret).verify(token)).isEmpty();
         assertThat(serviceAt(ISSUED, SECRET).verify(token + "x")).isEmpty();
         assertThat(serviceAt(ISSUED, SECRET).verify("not-a-token")).isEmpty();
+    }
+
+    @Test
+    void aValidlySignedTokenWithoutTheAaptaClaimIsRejected() {
+        // e.g. a session issued before "therapistId" was renamed to "aaptaId"
+        String legacy = Jwts.builder()
+                .subject("aanya@ksiracare.com")
+                .claim("therapistId", UUID.randomUUID().toString())
+                .issuedAt(Date.from(ISSUED))
+                .expiration(Date.from(ISSUED.plus(Duration.ofHours(2))))
+                .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET)))
+                .compact();
+
+        assertThat(serviceAt(ISSUED, SECRET).verify(legacy)).isEmpty();
     }
 
     @Test

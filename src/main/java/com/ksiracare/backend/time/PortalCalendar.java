@@ -12,7 +12,7 @@ import java.time.ZoneOffset;
 
 /**
  * The portal's notion of "today", "this month" and wall-clock time. Data is stored in UTC,
- * but therapists live by the portal time zone (IST), so every calendar rule goes through here.
+ * but aaptas live by the portal time zone (IST), so every calendar rule goes through here.
  */
 @Component
 public class PortalCalendar {

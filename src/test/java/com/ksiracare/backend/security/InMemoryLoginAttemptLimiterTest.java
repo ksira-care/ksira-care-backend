@@ -27,34 +27,34 @@ class InMemoryLoginAttemptLimiterTest {
     @Test
     void blocksAfterFiveFailuresRegardlessOfEmailCase() {
         for (int i = 0; i < 4; i++) {
-            limiter.recordFailure("therapist@ksiracare.com");
+            limiter.recordFailure("aapta@ksiracare.com");
         }
-        assertThat(limiter.isBlocked("therapist@ksiracare.com")).isFalse();
+        assertThat(limiter.isBlocked("aapta@ksiracare.com")).isFalse();
 
-        limiter.recordFailure("Therapist@KsiraCare.com ");
+        limiter.recordFailure("Aapta@KsiraCare.com ");
 
-        assertThat(limiter.isBlocked("therapist@ksiracare.com")).isTrue();
+        assertThat(limiter.isBlocked("aapta@ksiracare.com")).isTrue();
         assertThat(limiter.isBlocked("someone-else@ksiracare.com")).isFalse();
     }
 
     @Test
     void unblocksOnceFailuresAgeOutOfTheWindow() {
         for (int i = 0; i < 5; i++) {
-            limiter.recordFailure("therapist@ksiracare.com");
+            limiter.recordFailure("aapta@ksiracare.com");
         }
         now.set(now.get().plus(Duration.ofMinutes(16)));
 
-        assertThat(limiter.isBlocked("therapist@ksiracare.com")).isFalse();
+        assertThat(limiter.isBlocked("aapta@ksiracare.com")).isFalse();
     }
 
     @Test
     void aSuccessfulSignInClearsFailures() {
         for (int i = 0; i < 4; i++) {
-            limiter.recordFailure("therapist@ksiracare.com");
+            limiter.recordFailure("aapta@ksiracare.com");
         }
-        limiter.recordSuccess("therapist@ksiracare.com");
-        limiter.recordFailure("therapist@ksiracare.com");
+        limiter.recordSuccess("aapta@ksiracare.com");
+        limiter.recordFailure("aapta@ksiracare.com");
 
-        assertThat(limiter.isBlocked("therapist@ksiracare.com")).isFalse();
+        assertThat(limiter.isBlocked("aapta@ksiracare.com")).isFalse();
     }
 }

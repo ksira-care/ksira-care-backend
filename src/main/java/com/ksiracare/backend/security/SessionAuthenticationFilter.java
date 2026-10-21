@@ -1,7 +1,7 @@
 package com.ksiracare.backend.security;
 
-import com.ksiracare.backend.entity.Therapist;
-import com.ksiracare.backend.repository.TherapistRepository;
+import com.ksiracare.backend.entity.Aapta;
+import com.ksiracare.backend.repository.AaptaRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,14 +22,14 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
 
     private final SessionCookies sessionCookies;
     private final JwtService jwtService;
-    private final TherapistRepository therapistRepository;
+    private final AaptaRepository aaptaRepository;
 
     public SessionAuthenticationFilter(SessionCookies sessionCookies,
                                        JwtService jwtService,
-                                       TherapistRepository therapistRepository) {
+                                       AaptaRepository aaptaRepository) {
         this.sessionCookies = sessionCookies;
         this.jwtService = jwtService;
-        this.therapistRepository = therapistRepository;
+        this.aaptaRepository = aaptaRepository;
     }
 
     @Override
@@ -44,9 +44,9 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /** Deactivating an account takes effect immediately, not when its session expires. */
-    private boolean isStillActive(TherapistPrincipal principal) {
-        return therapistRepository.findById(principal.therapistId())
-                .map(Therapist::isActive)
+    private boolean isStillActive(AaptaPrincipal principal) {
+        return aaptaRepository.findById(principal.aaptaId())
+                .map(Aapta::isActive)
                 .orElse(false);
     }
 }

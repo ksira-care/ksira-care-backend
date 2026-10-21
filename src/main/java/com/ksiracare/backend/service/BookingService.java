@@ -9,9 +9,9 @@ import java.util.UUID;
 
 public interface BookingService {
 
-    /** The therapist's bookings starting in the range, cancelled ones excluded. */
-    BookingsResponseDto getBookings(UUID therapistId, UtcRange range);
+    /** The aapta's bookings starting in the range, cancelled ones excluded. */
+    BookingsResponseDto getBookings(UUID aaptaId, UtcRange range);
 
-    /** Changes the status of one of the therapist's own bookings, following {@code BookingStatusPolicy}. */
-    BookingItemDto updateStatus(UUID therapistId, UUID bookingId, BookingStatus target);
+    /** Changes the status of one of the aapta's own bookings, following {@code BookingStatusPolicy}. */
+    BookingItemDto updateStatus(UUID aaptaId, UUID bookingId, BookingStatus target);
 }

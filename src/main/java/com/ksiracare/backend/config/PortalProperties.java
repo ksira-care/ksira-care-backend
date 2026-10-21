@@ -9,10 +9,10 @@ import org.springframework.validation.annotation.Validated;
 import java.time.ZoneId;
 
 /**
- * Calendar rules for the therapist portal ({@code ksira.portal.*}).
+ * Calendar rules for the aapta portal ({@code ksira.portal.*}).
  *
  * @param timeZone           zone in which days, months and opening hours are defined (times are stored in UTC)
- * @param bookingWindowDays  how many days ahead therapists may open hours
+ * @param bookingWindowDays  how many days ahead aaptas may open hours
  * @param firstSlotHour      first session start of the day, in {@code timeZone}
  * @param lastSlotHour       last session start of the day, in {@code timeZone}
  */
