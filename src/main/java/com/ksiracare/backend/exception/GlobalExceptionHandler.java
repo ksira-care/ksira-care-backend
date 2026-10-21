@@ -41,8 +41,7 @@ public class GlobalExceptionHandler {
             HandlerMethodValidationException.class,
             MissingServletRequestParameterException.class,
             MethodArgumentTypeMismatchException.class,
-            HttpMessageNotReadableException.class,
-            IllegalArgumentException.class
+            HttpMessageNotReadableException.class
     })
     public ResponseEntity<ProblemDetail> handleBadRequest(Exception exception) {
         return problem(ErrorCode.VALIDATION_FAILED, "The request is missing information or has invalid values.");

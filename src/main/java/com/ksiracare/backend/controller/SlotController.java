@@ -1,10 +1,10 @@
 package com.ksiracare.backend.controller;
 
 import com.ksiracare.backend.dto.request.SlotRequestDto;
-import com.ksiracare.backend.dto.response.SlotResponseDto;
+import com.ksiracare.backend.dto.response.SlotsResponseDto;
 import com.ksiracare.backend.security.AaptaPrincipal;
 import com.ksiracare.backend.service.SlotService;
-import com.ksiracare.backend.time.EpochTime;
+import com.ksiracare.backend.time.QueryRanges;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,20 +24,21 @@ import java.util.List;
 public class SlotController {
 
     private final SlotService slotService;
+    private final QueryRanges queryRanges;
 
     @GetMapping
-    public List<SlotResponseDto> getSlots(@AuthenticationPrincipal AaptaPrincipal me,
-                                          @RequestParam Long startTime,
-                                          @RequestParam Long endTime) {
-        return slotService.getSlots(me.aaptaId(), EpochTime.toRange(startTime, endTime));
+    public SlotsResponseDto getSlots(@AuthenticationPrincipal AaptaPrincipal me,
+                                     @RequestParam long startTime,
+                                     @RequestParam long endTime) {
+        return new SlotsResponseDto(slotService.getSlots(me.aaptaId(), queryRanges.of(startTime, endTime)));
     }
 
     /** Applies only the hours sent; 409 SLOT_BOOKED if one of them has a session. */
     @PostMapping
-    public List<SlotResponseDto> saveSlots(@AuthenticationPrincipal AaptaPrincipal me,
-                                           @RequestParam Long startTime,
-                                           @RequestParam Long endTime,
-                                           @Valid @RequestBody List<@Valid SlotRequestDto> changes) {
-        return slotService.saveSlots(me.aaptaId(), EpochTime.toRange(startTime, endTime), changes);
+    public SlotsResponseDto saveSlots(@AuthenticationPrincipal AaptaPrincipal me,
+                                      @RequestParam long startTime,
+                                      @RequestParam long endTime,
+                                      @Valid @RequestBody List<@Valid SlotRequestDto> changes) {
+        return new SlotsResponseDto(slotService.saveSlots(me.aaptaId(), queryRanges.of(startTime, endTime), changes));
     }
 }

@@ -2,22 +2,17 @@ package com.ksiracare.backend.dto.request;
 
 import com.ksiracare.backend.enums.SlotStatus;
 import jakarta.validation.constraints.NotNull;
-import lombok.*;
 
 import java.util.UUID;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class SlotRequestDto {
-
-    private UUID id;
-
-    @NotNull(message = "Slot time is required")
-    private Long time; // Epoch timestamp in milliseconds (or seconds)
-
-    @NotNull(message = "Slot status is required")
-    private SlotStatus status;
+/**
+ * One hour the aapta is opening or closing.
+ *
+ * @param time start of the hour, epoch milliseconds (UTC)
+ */
+public record SlotRequestDto(
+        UUID id,
+        @NotNull(message = "Slot time is required") Long time,
+        @NotNull(message = "Slot status is required") SlotStatus status
+) {
 }

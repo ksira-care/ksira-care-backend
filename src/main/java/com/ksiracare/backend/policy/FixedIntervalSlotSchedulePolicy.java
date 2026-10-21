@@ -5,6 +5,7 @@ import com.ksiracare.backend.time.PortalCalendar;
 import com.ksiracare.backend.time.UtcRange;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -12,21 +13,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * One-hour sessions starting on the hour, from {@code firstSlotHour} to {@code lastSlotHour}
- * in the portal time zone (09:00–23:00 IST by default), up to {@code bookingWindowDays} ahead.
+ * Back-to-back sessions of {@code sessionLength}, starting at {@code firstSlotHour} and no later
+ * than {@code lastSlotHour} in the portal time zone (hourly, 09:00–23:00 IST by default), up to
+ * {@code bookingWindowDays} ahead.
  */
 @Component
-public class FixedHourlySlotSchedulePolicy implements SlotSchedulePolicy {
+public class FixedIntervalSlotSchedulePolicy implements SlotSchedulePolicy {
 
     private final PortalCalendar calendar;
-    private final int firstHour;
-    private final int lastHour;
+    private final LocalTime firstStart;
+    private final LocalTime lastStart;
+    private final Duration sessionLength;
     private final int windowDays;
 
-    public FixedHourlySlotSchedulePolicy(PortalCalendar calendar, PortalProperties properties) {
+    public FixedIntervalSlotSchedulePolicy(PortalCalendar calendar, PortalProperties properties) {
         this.calendar = calendar;
-        this.firstHour = properties.firstSlotHour();
-        this.lastHour = properties.lastSlotHour();
+        this.firstStart = LocalTime.of(properties.firstSlotHour(), 0);
+        this.lastStart = LocalTime.of(properties.lastSlotHour(), 0);
+        this.sessionLength = properties.sessionLength();
         this.windowDays = properties.bookingWindowDays();
     }
 
@@ -35,8 +39,8 @@ public class FixedHourlySlotSchedulePolicy implements SlotSchedulePolicy {
         List<LocalDateTime> starts = new ArrayList<>();
         LocalDate lastDay = calendar.dateOf(range.end());
         for (LocalDate day = calendar.dateOf(range.start()); !day.isAfter(lastDay); day = day.plusDays(1)) {
-            for (int hour = firstHour; hour <= lastHour; hour++) {
-                LocalDateTime start = calendar.toUtc(day, LocalTime.of(hour, 0));
+            for (LocalDateTime local = day.atTime(firstStart); !local.isAfter(day.atTime(lastStart)); local = local.plus(sessionLength)) {
+                LocalDateTime start = calendar.toUtc(day, local.toLocalTime());
                 if (range.contains(start)) {
                     starts.add(start);
                 }
@@ -48,8 +52,11 @@ public class FixedHourlySlotSchedulePolicy implements SlotSchedulePolicy {
     @Override
     public boolean isSlotStart(LocalDateTime slotStartUtc) {
         LocalTime local = calendar.timeOf(slotStartUtc);
-        boolean onTheHour = local.getMinute() == 0 && local.getSecond() == 0 && local.getNano() == 0;
-        return onTheHour && local.getHour() >= firstHour && local.getHour() <= lastHour;
+        if (local.isBefore(firstStart) || local.isAfter(lastStart)) {
+            return false;
+        }
+        long sinceFirst = Duration.between(firstStart, local).toNanos();
+        return sinceFirst % sessionLength.toNanos() == 0;
     }
 
     @Override

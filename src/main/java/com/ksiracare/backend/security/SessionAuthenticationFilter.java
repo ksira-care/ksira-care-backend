@@ -1,6 +1,5 @@
 package com.ksiracare.backend.security;
 
-import com.ksiracare.backend.entity.Aapta;
 import com.ksiracare.backend.repository.AaptaRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -45,8 +44,6 @@ public class SessionAuthenticationFilter extends OncePerRequestFilter {
 
     /** Deactivating an account takes effect immediately, not when its session expires. */
     private boolean isStillActive(AaptaPrincipal principal) {
-        return aaptaRepository.findById(principal.aaptaId())
-                .map(Aapta::isActive)
-                .orElse(false);
+        return aaptaRepository.existsByIdAndActiveTrue(principal.aaptaId());
     }
 }

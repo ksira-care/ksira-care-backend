@@ -11,12 +11,14 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -152,5 +154,42 @@ class AaptaPortalApiIntegrationTest {
         mvc.perform(post("/api/auth/logout").contextPath("/api"))
                 .andExpect(status().isNoContent())
                 .andExpect(cookie().maxAge(COOKIE, 0));
+    }
+
+    @Test
+    void slotsComeInAnEnvelope() throws Exception {
+        long now = Instant.now().toEpochMilli();
+
+        mvc.perform(get("/api/aaptas/me/slots").contextPath("/api").cookie(session())
+                        .param("startTime", String.valueOf(now))
+                        .param("endTime", String.valueOf(now + Duration.ofDays(7).toMillis())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slots").isNotEmpty())
+                .andExpect(jsonPath("$.slots[0].time").isNumber());
+    }
+
+    @Test
+    void reversedOrOversizedRangesAreRejected() throws Exception {
+        long now = Instant.now().toEpochMilli();
+
+        mvc.perform(get("/api/bookings").contextPath("/api").cookie(session())
+                        .param("startTime", String.valueOf(now))
+                        .param("endTime", String.valueOf(now - 1)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(get("/api/aaptas/me/slots").contextPath("/api").cookie(session())
+                        .param("startTime", "0")
+                        .param("endTime", String.valueOf(now)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void unknownStatusValuesAreRejected() throws Exception {
+        mvc.perform(patch("/api/bookings/00000000-0000-0000-0000-000000000000").contextPath("/api").cookie(session())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"bookingStatus\":\"THERAPIST_NO_SHOW\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 }

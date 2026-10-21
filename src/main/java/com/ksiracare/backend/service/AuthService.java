@@ -50,14 +50,14 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public LoginResult login(LoginRequestDto request) {
-        String email = request.getEmail().trim();
+        String email = request.email().trim();
         if (attemptLimiter.isBlocked(email)) {
             throw new TooManyLoginAttemptsException("Too many sign-in attempts. Please wait a few minutes and try again.");
         }
 
         Optional<Aapta> aapta = aaptaRepository.findByEmailIgnoreCase(email);
         String storedHash = aapta.map(Aapta::getPassword).orElse(dummyHash);
-        boolean passwordMatches = passwordEncoder.matches(request.getPassword(), storedHash);
+        boolean passwordMatches = passwordEncoder.matches(request.password(), storedHash);
 
         if (aapta.isEmpty() || !passwordMatches) {
             attemptLimiter.recordFailure(email);

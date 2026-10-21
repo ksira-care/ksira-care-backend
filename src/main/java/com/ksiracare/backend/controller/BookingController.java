@@ -5,7 +5,7 @@ import com.ksiracare.backend.dto.response.BookingItemDto;
 import com.ksiracare.backend.dto.response.BookingsResponseDto;
 import com.ksiracare.backend.security.AaptaPrincipal;
 import com.ksiracare.backend.service.BookingService;
-import com.ksiracare.backend.time.EpochTime;
+import com.ksiracare.backend.time.QueryRanges;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,13 +26,14 @@ import java.util.UUID;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final QueryRanges queryRanges;
 
     /** Bookings starting in [startTime, endTime), epoch milliseconds. */
     @GetMapping
     public BookingsResponseDto getBookings(@AuthenticationPrincipal AaptaPrincipal me,
-                                           @RequestParam Long startTime,
-                                           @RequestParam Long endTime) {
-        return bookingService.getBookings(me.aaptaId(), EpochTime.toRange(startTime, endTime));
+                                           @RequestParam long startTime,
+                                           @RequestParam long endTime) {
+        return new BookingsResponseDto(bookingService.getBookings(me.aaptaId(), queryRanges.of(startTime, endTime)));
     }
 
     /** Mark complete / client no-show, or undo with "PENDING". */

@@ -44,10 +44,7 @@ class AuthServiceTest {
     }
 
     private static LoginRequestDto request(String email, String password) {
-        LoginRequestDto request = new LoginRequestDto();
-        request.setEmail(email);
-        request.setPassword(password);
-        return request;
+        return new LoginRequestDto(email, password);
     }
 
     @Test

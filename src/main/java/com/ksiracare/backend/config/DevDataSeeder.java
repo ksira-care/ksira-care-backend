@@ -43,7 +43,6 @@ import java.util.stream.Collectors;
 public class DevDataSeeder implements ApplicationRunner {
 
     private static final String DEMO_PASSWORD = "password123";
-    private static final int SESSION_MINUTES = 60;
 
     private final AaptaRepository aaptaRepository;
     private final LanguageRepository languageRepository;
@@ -51,6 +50,7 @@ public class DevDataSeeder implements ApplicationRunner {
     private final SlotRepository slotRepository;
     private final PasswordEncoder passwordEncoder;
     private final PortalCalendar calendar;
+    private final PortalProperties portal;
 
     private record DemoClient(String name, String reason, Language... languages) {
     }
@@ -132,7 +132,7 @@ public class DevDataSeeder implements ApplicationRunner {
                          BookingStatus status, LocalDateTime now) {
         LocalDateTime start = calendar.toUtc(day, LocalTime.of(hour, 0));
         Slot slot = slotRepository.save(new Slot(aapta, start, SlotStatus.BOOKED));
-        LocalDateTime end = start.plusMinutes(SESSION_MINUTES);
+        LocalDateTime end = start.plus(portal.sessionLength());
         return bookingRepository.save(Booking.builder()
                 .aapta(aapta)
                 .slot(slot)

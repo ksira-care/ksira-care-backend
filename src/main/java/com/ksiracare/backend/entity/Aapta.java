@@ -48,8 +48,8 @@ public class Aapta {
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false)
-    private boolean isActive = true;
+    @Column(name = "is_active", nullable = false)
+    private boolean active = true;
 
     @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Must be a valid E.164 phone number")
     private String phone;
@@ -86,11 +86,11 @@ public class Aapta {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Aapta aapta)) return false;
-        return email != null && email.equalsIgnoreCase(aapta.getEmail());
+        return id != null && Objects.equals(id, aapta.getId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(email != null ? email.toLowerCase() : null);
+        return getClass().hashCode();
     }
 }
