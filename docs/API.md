@@ -5,7 +5,7 @@ Base URL: `/api` (e.g. `http://localhost:8080/api`).
 ## Conventions
 
 - **Sessions.** Aaptas and admins sign in at the same endpoint, and the response's `role` says which they are. Sign-in sets one httpOnly cookie, `ksira_session` (path `/api`), so send requests with credentials.
-  - `/admin/**` needs an admin session, `/auth/session`, `/auth/password` and `/languages` accept either role, and the rest of the API needs an aapta session.
+  - `/admin/**` needs an admin session, `/auth/session` and `/auth/password` accept either role, `/languages` and `/public/**` need no session, and the rest of the API needs an aapta session.
   - With no session the response is `401 UNAUTHENTICATED`; with the wrong role it is `403 FORBIDDEN`.
 - **Times** are epoch milliseconds (UTC). **Dates** are `YYYY-MM-DD` and **months** are `YYYY-MM`, both in the portal time zone (IST).
 - **Languages** are ISO 639-1 codes: `en`, `hi`, `mr`, `kn`.
@@ -86,7 +86,7 @@ Errors: `CURRENT_PASSWORD_INCORRECT`, `VALIDATION_FAILED`.
 
 ### `GET /languages`
 
-Works for either role. Feeds the language pickers.
+No sign-in needed. Feeds every language picker, including the website's booking form.
 
 `200`
 
